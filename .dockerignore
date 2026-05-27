@@ -1,0 +1,14 @@
+# Build context is the repo root for both service images. Keep it lean and
+# avoid shipping host-only artifacts into the daemon / image layers.
+.git
+**/.venv
+**/node_modules
+**/dist
+**/__pycache__
+**/*.py[cod]
+**/*.db
+**/.env
+**/.DS_Store
+docs
+specs
+ai-docs
