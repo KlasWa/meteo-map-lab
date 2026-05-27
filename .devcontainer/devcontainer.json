@@ -1,0 +1,8 @@
+{
+  "name": "elvy-map",
+  "dockerComposeFile": "docker-compose.yml",
+  "service": "backend",
+  "workspaceFolder": "/workspace",
+  "forwardPorts": [8000, 5173],
+  "shutdownAction": "stopCompose"
+}
