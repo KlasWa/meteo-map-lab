@@ -1,0 +1,17 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+*.db
+
+# Env files (committed: *.example only)
+.env
+.env.*
+!.env.example
+
+# Node / frontend build
+node_modules/
+dist/
+
+# OS / editor
+.DS_Store
