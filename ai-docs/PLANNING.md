@@ -104,8 +104,9 @@ historical data so repeated queries don't re-hit SMHI.
 
 ## Milestones / Roadmap
 
-1. **Scaffold** — frontend (React) + backend (Python) projects, runnable
-   locally.
+1. **Scaffold** — frontend (React+TS) + backend (FastAPI) projects, dev
+   container, OpenAPI-typed client. ✅ Done (see
+   `docs/superpowers/plans/2026-05-28-scaffold.md`).
 2. **SMHI integration** — fetch and parse historical data for a coordinate.
 3. **Calculations** — cloud coverage + lightning probability.
 4. **API** — expose metrics with day/month/year aggregation.
@@ -128,4 +129,4 @@ historical data so repeated queries don't re-hit SMHI.
 - **`specs/`** — one file per feature/decision before it is built. Use the
   spec workflow (`/spec-generate` → `/spec-implement` → `/spec-finish`).
 
-_Last updated: 2026-05-27_
+_Last updated: 2026-05-28_
