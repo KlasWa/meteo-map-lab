@@ -1514,7 +1514,7 @@ git commit -m "feat(backend): add CloudCoverService ingest + read logic"
 
 ---
 
-## Task 10: `/cloud-cover` endpoint
+## Task 10: `/api/cloud-cover` endpoint
 
 **Files:**
 - Modify: `backend/app/api/routes.py`
@@ -1582,7 +1582,7 @@ def teardown_function():
 def test_cloud_cover_daily_ok():
     svc = _make_service(FakeClient())
     client = _client_with(svc)
-    r = client.get("/cloud-cover", params={"lat": 59.05, "lon": 18.05, "resolution": "daily"})
+    r = client.get("/api/cloud-cover", params={"lat": 59.05, "lon": 18.05, "resolution": "daily"})
     assert r.status_code == 200
     body = r.json()
     assert body["station"]["id"] == 1
@@ -1596,7 +1596,7 @@ def test_cloud_cover_daily_ok():
 def test_cloud_cover_default_resolution_is_daily():
     svc = _make_service(FakeClient())
     client = _client_with(svc)
-    r = client.get("/cloud-cover", params={"lat": 59.05, "lon": 18.05})
+    r = client.get("/api/cloud-cover", params={"lat": 59.05, "lon": 18.05})
     assert r.status_code == 200
     assert r.json()["resolution"] == "daily"
 
@@ -1604,14 +1604,14 @@ def test_cloud_cover_default_resolution_is_daily():
 def test_cloud_cover_invalid_resolution_is_422():
     svc = _make_service(FakeClient())
     client = _client_with(svc)
-    r = client.get("/cloud-cover", params={"lat": 59.0, "lon": 18.0, "resolution": "weekly"})
+    r = client.get("/api/cloud-cover", params={"lat": 59.0, "lon": 18.0, "resolution": "weekly"})
     assert r.status_code == 422
 
 
 def test_cloud_cover_no_station_is_404():
     svc = _make_service(FakeClient())
     client = _client_with(svc)
-    r = client.get("/cloud-cover", params={"lat": 0.0, "lon": 0.0})
+    r = client.get("/api/cloud-cover", params={"lat": 0.0, "lon": 0.0})
     assert r.status_code == 404
 
 
@@ -1620,18 +1620,23 @@ def test_cloud_cover_503_when_unavailable_and_cold():
     fake.fail_recent = True
     svc = _make_service(fake)
     client = _client_with(svc)
-    r = client.get("/cloud-cover", params={"lat": 59.05, "lon": 18.05})
+    r = client.get("/api/cloud-cover", params={"lat": 59.05, "lon": 18.05})
     assert r.status_code == 503
 ```
 
 - [ ] **Step 2: Run the tests to verify they fail**
 
 Run: `pytest tests/test_cloud_cover_endpoint.py -v`
-Expected: FAIL — `get_cloud_cover_service` / `/cloud-cover` do not exist.
+Expected: FAIL — `get_cloud_cover_service` / `/api/cloud-cover` do not exist.
 
 - [ ] **Step 3: Add the endpoint and dependency**
 
-Replace the contents of `backend/app/api/routes.py` with:
+The existing `routes.py` keeps `/health` (with `HealthResponse`) and
+`/api/metrics` (with `MetricsResponse`) — **do not change those**, the frontend
+calls `/api/metrics` and `tests/test_health.py` asserts both. Replace the
+contents of `backend/app/api/routes.py` with the following, which preserves the
+existing routes verbatim and adds `/api/cloud-cover` (same `/api/` prefix as
+metrics):
 
 ```python
 from typing import Literal
@@ -1640,7 +1645,7 @@ from fastapi import APIRouter, Depends, HTTPException
 
 from app.core.config import settings
 from app.schemas.cloud_cover import CloudCoverResponse
-from app.schemas.metrics import MetricsResponse
+from app.schemas.metrics import HealthResponse, MetricsResponse
 from app.services.cloud_cover import (
     CloudCoverService,
     NoStationFound,
@@ -1649,8 +1654,7 @@ from app.services.cloud_cover import (
 from app.services.smhi import SMHIClient
 
 router = APIRouter()
-
-smhi_client = SMHIClient(base_url=settings.smhi_base_url)
+_smhi = SMHIClient(settings.smhi_base_url)
 
 _service: CloudCoverService | None = None
 
@@ -1670,17 +1674,21 @@ def get_cloud_cover_service() -> CloudCoverService:
     return _service
 
 
-@router.get("/health")
-def health() -> dict[str, str]:
-    return {"status": "ok"}
+@router.get("/health", response_model=HealthResponse, tags=["system"])
+def health() -> HealthResponse:
+    return HealthResponse(status="ok")
 
 
-@router.get("/metrics", response_model=MetricsResponse)
+@router.get("/api/metrics", response_model=MetricsResponse, tags=["metrics"])
 def metrics(lat: float, lon: float) -> MetricsResponse:
-    return smhi_client.get_metrics(lat, lon)
+    return _smhi.get_metrics(lat, lon)
 
 
-@router.get("/cloud-cover", response_model=CloudCoverResponse)
+@router.get(
+    "/api/cloud-cover",
+    response_model=CloudCoverResponse,
+    tags=["cloud-cover"],
+)
 def cloud_cover(
     lat: float,
     lon: float,
@@ -1694,6 +1702,11 @@ def cloud_cover(
     except SMHIUnavailable as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
 ```
+
+> Note: `app.db.session` must expose `engine` at module level (it already
+> creates `engine = create_engine(...)` in Task 2's file). The lazy import
+> avoids creating the DB engine at import time during tests that override the
+> dependency.
 
 - [ ] **Step 4: Run the tests to verify they pass**
 
@@ -1709,7 +1722,7 @@ Expected: all tests pass (no failures).
 
 ```bash
 git add app/api/routes.py tests/test_cloud_cover_endpoint.py
-git commit -m "feat(backend): add /cloud-cover endpoint"
+git commit -m "feat(backend): add /api/cloud-cover endpoint"
 ```
 
 ---
