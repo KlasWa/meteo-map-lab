@@ -23,6 +23,15 @@ package = false
 [tool.ruff]
 line-length = 100
 
+[tool.pylint.format]
+max-line-length = 100
+
+[tool.pylint.messages_control]
+disable = [
+    "missing-class-docstring",     # C0115
+    "missing-function-docstring",  # C0116
+]
+
 [tool.pytest.ini_options]
 pythonpath = ["."]
 testpaths = ["tests"]

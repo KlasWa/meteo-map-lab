@@ -1,3 +1,4 @@
+from functools import lru_cache
 from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -15,20 +16,16 @@ from app.services.smhi import SMHIClient
 router = APIRouter()
 _smhi = SMHIClient(settings.smhi_base_url)
 
-_service: CloudCoverService | None = None
 
-
+@lru_cache(maxsize=1)
 def get_cloud_cover_service() -> CloudCoverService:
     """Lazily build a process-wide CloudCoverService. Overridable in tests via
     app.dependency_overrides."""
-    global _service
-    if _service is None:
-        from app.db.session import engine
-        from app.repositories.sqlite import SqliteRepository
+    from app.db.session import engine
+    from app.repositories.sqlite import SqliteRepository
 
-        client = SMHIClient(base_url=settings.smhi_base_url, param=settings.cloud_cover_param)
-        _service = CloudCoverService(client, SqliteRepository(engine), settings)
-    return _service
+    client = SMHIClient(base_url=settings.smhi_base_url, param=settings.cloud_cover_param)
+    return CloudCoverService(client, SqliteRepository(engine), settings)
 
 
 @router.get("/health", response_model=HealthResponse, tags=["system"])
