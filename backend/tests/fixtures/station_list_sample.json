@@ -1,0 +1,7 @@
+{
+  "key": "16",
+  "station": [
+    { "id": 92410, "name": "Arvika A", "latitude": 59.6743, "longitude": 12.6354, "active": true, "from": 828316800000, "to": 1780000000000 },
+    { "id": 71420, "name": "Stockholm A", "latitude": 59.3416, "longitude": 18.0548, "active": true, "from": 700000000000, "to": 1780000000000 }
+  ]
+}
