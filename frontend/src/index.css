@@ -1,11 +1,9 @@
-:root {
-  font-family: system-ui, "Segoe UI", Roboto, sans-serif;
-  color-scheme: light dark;
-}
+@import "tailwindcss";
+@plugin "daisyui";
 
+/* Keep #root filling the viewport so the map layout can use flex/height. */
 html,
 body,
 #root {
-  margin: 0;
   height: 100%;
 }
