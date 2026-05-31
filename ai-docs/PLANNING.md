@@ -46,19 +46,26 @@ historical data so repeated queries don't re-hit SMHI.
 
 ## Tech Stack
 
-| Layer        | Choice (proposed)                          | Notes                                          |
+| Layer        | Choice                                     | Notes                                          |
 | ------------ | ------------------------------------------ | ---------------------------------------------- |
-| Frontend     | React                                      | Per brief. Charting lib TBD (Recharts/Chart.js).|
-| Geocoding    | Address → lat/long service                 | E.g. Nominatim / a geocoding API.              |
-| Backend      | Python                                     | FastAPI or Flask (decision pending).           |
-| Data source  | SMHI Open Data APIs                        | Meteorological observations + historical data. |
-| Data store   | TBD                                        | SQLite/Postgres or cached files for history.   |
-| Deployment   | Terraform                                  | Per brief.                                      |
+| Frontend     | React 19 + TypeScript 6, Vite 8            | Charts via Chart.js + react-chartjs-2.         |
+| Styling      | Tailwind CSS 4 + daisyUI 5                 | Via `@tailwindcss/vite` plugin.                |
+| Map          | MapTiler SDK 4 (MapLibre GL), hybrid-v4    | Interactive map for location selection.        |
+| Geocoding    | MapTiler Geocoding Control                 | `@maptiler/geocoding-control`; needs API key.  |
+| Backend      | FastAPI (Python 3.12), Uvicorn             | httpx for SMHI calls, pydantic-settings.       |
+| API client   | openapi-typescript + openapi-fetch         | Typed client generated from backend OpenAPI.   |
+| Data source  | SMHI Open Data APIs                         | Meteorological observations + historical data. |
+| Data store   | SQLite via SQLModel (SQLAlchemy)           | `sqlite:///./elvy_map.db`; Postgres later.     |
+| Package mgmt | uv (backend), npm (frontend)               | `uv.lock` / `package-lock.json` committed.     |
+| Dev env      | Docker Compose + devcontainer, Makefile    | frontend + backend services, helper targets.   |
+| Tooling      | Ruff + pylint + pytest (backend), ESLint + tsc (FE) | Lint/format and tests.                 |
+| Deployment   | Terraform                                  | Per brief; not yet scaffolded.                 |
 | CI/CD        | GitHub Actions (bonus)                     | Lint, test, build, deploy.                      |
 | Forecasting  | AI/ML model (bonus)                        | Predict cloud/lightning trends.                |
 
-> Items marked TBD are open decisions — capture them as specs in
-> [`../specs/`](../specs/) before implementing.
+All earlier TBDs are now decided (charting → Chart.js, data store → SQLite,
+geocoding → MapTiler). Capture future open decisions as specs in
+[`../specs/`](../specs/) before implementing.
 
 ## Components
 
@@ -86,14 +93,19 @@ historical data so repeated queries don't re-hit SMHI.
 
 ## Data Flow
 
-1. User enters an address in the React app.
-2. Address is geocoded to latitude/longitude.
-3. Frontend requests metrics for the coordinate + granularity from the backend.
-4. Backend resolves the coordinate to SMHI station(s), serving cached
-   historical data or fetching from SMHI when missing.
-5. Backend computes cloud coverage and lightning probability and aggregates by
-   day/month/year.
-6. Frontend renders the charts.
+1. User enters an address (MapTiler geocoding) or clicks the map.
+2. The selection resolves to latitude/longitude.
+3. Frontend calls `GET /api/cloud-cover?lat=&lon=&resolution=` for the
+   chosen granularity (hourly/daily/monthly).
+4. Backend resolves the coordinate to the nearest SMHI station, serving cached
+   data or fetching from SMHI when missing/stale (archive fetched once,
+   recent window refreshed on a TTL).
+5. Backend aggregates hourly observations into the requested resolution and
+   returns the series (with a `stale` flag and SMHI attribution).
+6. Frontend renders the Chart.js line chart.
+
+> Lightning probability is not yet implemented; the flow above currently
+> covers cloud cover only.
 
 ## Deployment (Terraform)
 
@@ -107,12 +119,23 @@ historical data so repeated queries don't re-hit SMHI.
 1. **Scaffold** — frontend (React+TS) + backend (FastAPI) projects, dev
    container, OpenAPI-typed client. ✅ Done (see
    `docs/superpowers/plans/2026-05-28-scaffold.md`).
-2. **SMHI integration** — fetch and parse historical data for a coordinate.
-3. **Calculations** — cloud coverage + lightning probability.
-4. **API** — expose metrics with day/month/year aggregation.
-5. **Visualization** — charts in the frontend, address + location selection.
-6. **Deployment** — Terraform for hosted environments.
-7. **Bonus** — GitHub Actions CI/CD; AI forecasting.
+2. **SMHI integration (cloud cover)** — fetch + parse historical cloud-cover
+   data (param 16) for a coordinate, cached in SQLite behind a swappable
+   repository. ✅ Done (see
+   `docs/superpowers/specs/2026-05-31-smhi-cloud-cover-caching-design.md`).
+3. **Cloud-cover API + aggregation** — `GET /api/cloud-cover` serving
+   hourly/daily/monthly means over ~the past year, with lazy/TTL caching and
+   stale-serve fallback. ✅ Done.
+4. **Cloud-cover visualization** — Chart.js line chart in the frontend with a
+   hourly/daily/monthly toggle, driven by map location selection. ✅ Done.
+5. **Lightning-strike probability** — separate SMHI parameter + calculation,
+   exposed and charted. ⏳ Not started.
+6. **Deployment** — Terraform for hosted environments. ⏳ Not started.
+7. **Bonus** — GitHub Actions CI/CD; AI forecasting. ⏳ Not started.
+
+> Deferred within the cloud-cover work (see spec §9): scheduled background
+> refresh, multi-station "region" aggregation, quality-code filtering, and an
+> optional Parquet/DuckDB repository.
 
 ## Scaling Considerations
 
@@ -129,4 +152,4 @@ historical data so repeated queries don't re-hit SMHI.
 - **`specs/`** — one file per feature/decision before it is built. Use the
   spec workflow (`/spec-generate` → `/spec-implement` → `/spec-finish`).
 
-_Last updated: 2026-05-28_
+_Last updated: 2026-05-31 (cloud-cover ingest, API, and charts complete)._
