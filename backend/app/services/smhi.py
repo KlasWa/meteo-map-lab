@@ -1,12 +1,10 @@
 """SMHI Open Data client for cloud cover (parameter 16).
 
-Synchronous httpx client. Real cloud-cover fetching lives here; the legacy
-get_metrics stub is retained for the existing /metrics endpoint."""
+Synchronous httpx client wrapping the SMHI metobs endpoints."""
 
 import httpx
 
 from app.dto import StationRaw
-from app.schemas.metrics import MetricsResponse
 
 _API_VERSION = "1.0"
 
@@ -57,13 +55,3 @@ class SMHIClient:
         )
         r.raise_for_status()
         return r.text
-
-    def get_metrics(self, lat: float, lon: float) -> MetricsResponse:
-        # TODO: superseded by CloudCoverService; retained for /metrics stub.
-        return MetricsResponse(
-            lat=lat,
-            lon=lon,
-            cloud_cover_pct=0.0,
-            lightning_probability=0.0,
-            note="stub data",
-        )

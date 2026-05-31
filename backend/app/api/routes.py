@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException
 
 from app.core.config import settings
 from app.schemas.cloud_cover import CloudCoverResponse
-from app.schemas.metrics import HealthResponse, MetricsResponse
+from app.schemas.health import HealthResponse
 from app.services.cloud_cover import (
     CloudCoverService,
     NoStationFound,
@@ -14,7 +14,6 @@ from app.services.cloud_cover import (
 from app.services.smhi import SMHIClient
 
 router = APIRouter()
-_smhi = SMHIClient(settings.smhi_base_url)
 
 
 @lru_cache(maxsize=1)
@@ -31,11 +30,6 @@ def get_cloud_cover_service() -> CloudCoverService:
 @router.get("/health", response_model=HealthResponse, tags=["system"])
 def health() -> HealthResponse:
     return HealthResponse(status="ok")
-
-
-@router.get("/api/metrics", response_model=MetricsResponse, tags=["metrics"])
-def metrics(lat: float, lon: float) -> MetricsResponse:
-    return _smhi.get_metrics(lat, lon)
 
 
 @router.get(

@@ -26,57 +26,6 @@
         }
       }
     },
-    "/api/metrics": {
-      "get": {
-        "tags": [
-          "metrics"
-        ],
-        "summary": "Metrics",
-        "operationId": "metrics_api_metrics_get",
-        "parameters": [
-          {
-            "name": "lat",
-            "in": "query",
-            "required": true,
-            "schema": {
-              "type": "number",
-              "title": "Lat"
-            }
-          },
-          {
-            "name": "lon",
-            "in": "query",
-            "required": true,
-            "schema": {
-              "type": "number",
-              "title": "Lon"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/MetricsResponse"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "/api/cloud-cover": {
       "get": {
         "tags": [
@@ -241,39 +190,6 @@
           "status"
         ],
         "title": "HealthResponse"
-      },
-      "MetricsResponse": {
-        "properties": {
-          "lat": {
-            "type": "number",
-            "title": "Lat"
-          },
-          "lon": {
-            "type": "number",
-            "title": "Lon"
-          },
-          "cloud_cover_pct": {
-            "type": "number",
-            "title": "Cloud Cover Pct"
-          },
-          "lightning_probability": {
-            "type": "number",
-            "title": "Lightning Probability"
-          },
-          "note": {
-            "type": "string",
-            "title": "Note"
-          }
-        },
-        "type": "object",
-        "required": [
-          "lat",
-          "lon",
-          "cloud_cover_pct",
-          "lightning_probability",
-          "note"
-        ],
-        "title": "MetricsResponse"
       },
       "StationInfo": {
         "properties": {
