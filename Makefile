@@ -1,12 +1,19 @@
 COMPOSE = docker compose -f .devcontainer/docker-compose.yml
 
-.PHONY: up down test gen-schema gen-types gen-api
+.PHONY: up down rebuild test gen-schema gen-types gen-api
 
 up:
 	$(COMPOSE) up --build
 
 down:
 	$(COMPOSE) down
+
+# Drop anonymous volumes (notably frontend node_modules) and bring the stack
+# back up. Use this when package.json / pyproject.toml deps change, otherwise
+# the stale anonymous volume shadows the rebuilt image's fresh deps.
+rebuild:
+	$(COMPOSE) down -v
+	$(COMPOSE) up --build
 
 # Regenerate the OpenAPI schema (backend toolchain).
 gen-schema:
