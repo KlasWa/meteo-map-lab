@@ -1,0 +1,11 @@
+{
+  "parameter": { "key": "16", "name": "Total molnmängd", "unit": "procent" },
+  "station": { "key": 92410, "name": "Arvika A", "latitude": 59.6743, "longitude": 12.6354 },
+  "period": { "key": "latest-months", "from": 1735689600000, "to": 1735700400000 },
+  "value": [
+    { "date": 1735689600000, "value": "90", "quality": "G" },
+    { "date": 1735693200000, "value": "113", "quality": "G" },
+    { "date": 1735696800000, "value": "", "quality": "Y" },
+    { "date": 1735700400000, "value": "20", "quality": "G" }
+  ]
+}
