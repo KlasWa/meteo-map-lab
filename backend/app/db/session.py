@@ -2,6 +2,7 @@ from collections.abc import Iterator
 
 from sqlmodel import Session, SQLModel, create_engine
 
+import app.models  # noqa: F401  (registers tables on SQLModel.metadata)
 from app.core.config import settings
 
 engine = create_engine(
