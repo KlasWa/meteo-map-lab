@@ -28,7 +28,7 @@ export function MapView({ onSelect }: Props) {
     maptilersdk.config.apiKey = apiKey;
     const map = new maptilersdk.Map({
       container,
-      style: maptilersdk.MapStyle.STREETS,
+      style: "https://api.maptiler.com/maps/hybrid-v4/style.json",
       center: [15.0, 62.0], // Sweden [lng, lat]
       zoom: 4,
     });
