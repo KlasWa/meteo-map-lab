@@ -192,7 +192,9 @@ The existing `/metrics` stub is left untouched.
   a per-station `asyncio.Lock` coalesces duplicate fetches.
 - **No station within max radius / outside Sweden:** `404` with a message.
 - **Indeterminate values** (`113`, empty): stored as `None`; excluded from
-  aggregation means but counted toward `count`/coverage.
+  both the aggregation mean and `count` (which tracks usable, non-null
+  samples). A fully-indeterminate bucket therefore yields `count: 0` and a
+  `null` value, which the frontend can render as a gap.
 - **Quality codes:** retained as-is this iteration (no filtering); a later
   spec can let callers exclude `R`/`Y`.
 
