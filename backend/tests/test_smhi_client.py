@@ -10,9 +10,7 @@ FIXTURES = Path(__file__).parent / "fixtures"
 
 def _client_with(handler) -> SMHIClient:
     transport = httpx.MockTransport(handler)
-    return SMHIClient(
-        base_url="https://example.test/api", param=16, transport=transport
-    )
+    return SMHIClient(base_url="https://example.test/api", param=16, transport=transport)
 
 
 def test_fetch_station_list_maps_fields():

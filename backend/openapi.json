@@ -76,10 +76,146 @@
           }
         }
       }
+    },
+    "/api/cloud-cover": {
+      "get": {
+        "tags": [
+          "cloud-cover"
+        ],
+        "summary": "Cloud Cover",
+        "operationId": "cloud_cover_api_cloud_cover_get",
+        "parameters": [
+          {
+            "name": "lat",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "number",
+              "title": "Lat"
+            }
+          },
+          {
+            "name": "lon",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "number",
+              "title": "Lon"
+            }
+          },
+          {
+            "name": "resolution",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "hourly",
+                "daily",
+                "monthly"
+              ],
+              "type": "string",
+              "default": "daily",
+              "title": "Resolution"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CloudCoverResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
     "schemas": {
+      "CloudCoverResponse": {
+        "properties": {
+          "station": {
+            "$ref": "#/components/schemas/StationInfo"
+          },
+          "resolution": {
+            "type": "string",
+            "title": "Resolution"
+          },
+          "unit": {
+            "type": "string",
+            "title": "Unit",
+            "default": "percent"
+          },
+          "stale": {
+            "type": "boolean",
+            "title": "Stale",
+            "default": false
+          },
+          "attribution": {
+            "type": "string",
+            "title": "Attribution",
+            "default": "Data: SMHI (CC BY 4.0)"
+          },
+          "points": {
+            "items": {
+              "$ref": "#/components/schemas/CloudPoint"
+            },
+            "type": "array",
+            "title": "Points"
+          }
+        },
+        "type": "object",
+        "required": [
+          "station",
+          "resolution",
+          "points"
+        ],
+        "title": "CloudCoverResponse"
+      },
+      "CloudPoint": {
+        "properties": {
+          "ts": {
+            "type": "integer",
+            "title": "Ts"
+          },
+          "value": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Value"
+          },
+          "count": {
+            "type": "integer",
+            "title": "Count"
+          }
+        },
+        "type": "object",
+        "required": [
+          "ts",
+          "value",
+          "count"
+        ],
+        "title": "CloudPoint"
+      },
       "HTTPValidationError": {
         "properties": {
           "detail": {
@@ -138,6 +274,39 @@
           "note"
         ],
         "title": "MetricsResponse"
+      },
+      "StationInfo": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "lat": {
+            "type": "number",
+            "title": "Lat"
+          },
+          "lon": {
+            "type": "number",
+            "title": "Lon"
+          },
+          "distance_km": {
+            "type": "number",
+            "title": "Distance Km"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "lat",
+          "lon",
+          "distance_km"
+        ],
+        "title": "StationInfo"
       },
       "ValidationError": {
         "properties": {

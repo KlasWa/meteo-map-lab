@@ -2,7 +2,7 @@ import httpx
 import pytest
 
 from app.core.config import settings
-from app.dto import ParsedObs, StationRaw
+from app.dto import StationRaw
 from app.services.cloud_cover import (
     CloudCoverService,
     NoStationFound,
@@ -110,7 +110,9 @@ def test_get_cloud_cover_stale_when_refresh_fails_but_cache_exists(repo):
     svc.get_cloud_cover(59.05, 18.05, "daily", now_ms=NOW)  # warm cache
     client.fail_recent = True
     resp = svc.get_cloud_cover(
-        59.05, 18.05, "daily",
+        59.05,
+        18.05,
+        "daily",
         now_ms=NOW + settings.recent_ttl_seconds * 1000 + 1,
     )
     assert resp.stale is True

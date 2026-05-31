@@ -41,11 +41,14 @@ def test_upsert_observations_dedupes_on_station_ts(repo):
 
 def test_get_observations_filters_range_and_sorts(repo):
     repo.upsert_stations(_stations())
-    repo.upsert_observations(1, [
-        ParsedObs(3000, 30.0, "G"),
-        ParsedObs(1000, 10.0, "G"),
-        ParsedObs(5000, 50.0, "G"),
-    ])
+    repo.upsert_observations(
+        1,
+        [
+            ParsedObs(3000, 30.0, "G"),
+            ParsedObs(1000, 10.0, "G"),
+            ParsedObs(5000, 50.0, "G"),
+        ],
+    )
     rows = repo.get_observations(1, 1000, 3000)
     assert [r.ts_utc for r in rows] == [1000, 3000]
 

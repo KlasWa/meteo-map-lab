@@ -21,9 +21,7 @@ class SMHIClient:
     ) -> None:
         self.base_url = base_url
         self.param = param
-        self._client = httpx.Client(
-            base_url=base_url, timeout=timeout, transport=transport
-        )
+        self._client = httpx.Client(base_url=base_url, timeout=timeout, transport=transport)
 
     def fetch_station_list(self) -> list[StationRaw]:
         r = self._client.get(f"/version/{_API_VERSION}/parameter/{self.param}.json")

@@ -49,9 +49,7 @@ class SqliteRepository(CacheRepository):
         with Session(self._engine) as s:
             return len(s.exec(select(Station.id)).all())
 
-    def nearest_station(
-        self, lat: float, lon: float, max_km: float
-    ) -> StationRaw | None:
+    def nearest_station(self, lat: float, lon: float, max_km: float) -> StationRaw | None:
         with Session(self._engine) as s:
             stations = s.exec(select(Station)).all()
         best: Station | None = None
@@ -72,9 +70,7 @@ class SqliteRepository(CacheRepository):
             to_ts=best.to_ts,
         )
 
-    def upsert_observations(
-        self, station_id: int, obs: list[ParsedObs]
-    ) -> None:
+    def upsert_observations(self, station_id: int, obs: list[ParsedObs]) -> None:
         if not obs:
             return
         rows = [
@@ -98,9 +94,7 @@ class SqliteRepository(CacheRepository):
             s.execute(stmt)
             s.commit()
 
-    def get_observations(
-        self, station_id: int, start_ts: int, end_ts: int
-    ) -> list[ParsedObs]:
+    def get_observations(self, station_id: int, start_ts: int, end_ts: int) -> list[ParsedObs]:
         with Session(self._engine) as s:
             rows = s.exec(
                 select(Observation)
@@ -116,9 +110,7 @@ class SqliteRepository(CacheRepository):
     def get_fetch_log(self, station_id: int, kind: str) -> FetchLog | None:
         with Session(self._engine) as s:
             return s.exec(
-                select(FetchLog).where(
-                    FetchLog.station_id == station_id, FetchLog.kind == kind
-                )
+                select(FetchLog).where(FetchLog.station_id == station_id, FetchLog.kind == kind)
             ).first()
 
     def record_fetch(
@@ -131,9 +123,7 @@ class SqliteRepository(CacheRepository):
     ) -> None:
         with Session(self._engine) as s:
             existing = s.exec(
-                select(FetchLog).where(
-                    FetchLog.station_id == station_id, FetchLog.kind == kind
-                )
+                select(FetchLog).where(FetchLog.station_id == station_id, FetchLog.kind == kind)
             ).first()
             if existing:
                 existing.fetched_at = fetched_at

@@ -26,9 +26,7 @@ def get_cloud_cover_service() -> CloudCoverService:
         from app.db.session import engine
         from app.repositories.sqlite import SqliteRepository
 
-        client = SMHIClient(
-            base_url=settings.smhi_base_url, param=settings.cloud_cover_param
-        )
+        client = SMHIClient(base_url=settings.smhi_base_url, param=settings.cloud_cover_param)
         _service = CloudCoverService(client, SqliteRepository(engine), settings)
     return _service
 

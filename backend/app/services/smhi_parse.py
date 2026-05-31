@@ -12,9 +12,9 @@ _INDETERMINATE = 113.0
 
 
 def _to_ms(date_str: str, time_str: str) -> int:
-    dt = datetime.strptime(
-        f"{date_str} {time_str}", "%Y-%m-%d %H:%M:%S"
-    ).replace(tzinfo=timezone.utc)
+    dt = datetime.strptime(f"{date_str} {time_str}", "%Y-%m-%d %H:%M:%S").replace(
+        tzinfo=timezone.utc
+    )
     return int(dt.timestamp() * 1000)
 
 

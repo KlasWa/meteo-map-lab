@@ -87,9 +87,7 @@ class CloudCoverService:
                 raise SMHIUnavailable(str(exc)) from exc
             obs = parse_recent_json(payload)
             self.repo.upsert_observations(station_id, obs)
-            self.repo.record_fetch(
-                station_id, RECENT, now_ms, _min_ts(obs), _max_ts(obs)
-            )
+            self.repo.record_fetch(station_id, RECENT, now_ms, _min_ts(obs), _max_ts(obs))
 
         # Archive: fetch once, then never again (immutable).
         archive_log = self.repo.get_fetch_log(station_id, ARCHIVE)
@@ -101,9 +99,7 @@ class CloudCoverService:
             cutoff = now_ms - self.history_ms
             obs = [o for o in parse_archive_csv(text) if o.ts_utc >= cutoff]
             self.repo.upsert_observations(station_id, obs)
-            self.repo.record_fetch(
-                station_id, ARCHIVE, now_ms, _min_ts(obs), _max_ts(obs)
-            )
+            self.repo.record_fetch(station_id, ARCHIVE, now_ms, _min_ts(obs), _max_ts(obs))
 
     def get_cloud_cover(
         self,
@@ -118,8 +114,7 @@ class CloudCoverService:
         station = self.repo.nearest_station(lat, lon, self.nearest_max_km)
         if station is None:
             raise NoStationFound(
-                f"No SMHI station within {self.nearest_max_km} km of "
-                f"({lat}, {lon})."
+                f"No SMHI station within {self.nearest_max_km} km of ({lat}, {lon})."
             )
 
         stale = False
@@ -131,9 +126,7 @@ class CloudCoverService:
 
         obs = self.repo.get_observations(station.id, now_ms - _YEAR_MS, now_ms)
         if not obs and stale:
-            raise SMHIUnavailable(
-                "SMHI is unavailable and no cached data exists for this station."
-            )
+            raise SMHIUnavailable("SMHI is unavailable and no cached data exists for this station.")
 
         points = aggregate(obs, resolution)
         distance = haversine_km(lat, lon, station.lat, station.lon)

@@ -38,10 +38,59 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/cloud-cover": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Cloud Cover */
+        get: operations["cloud_cover_api_cloud_cover_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /** CloudCoverResponse */
+        CloudCoverResponse: {
+            station: components["schemas"]["StationInfo"];
+            /** Resolution */
+            resolution: string;
+            /**
+             * Unit
+             * @default percent
+             */
+            unit: string;
+            /**
+             * Stale
+             * @default false
+             */
+            stale: boolean;
+            /**
+             * Attribution
+             * @default Data: SMHI (CC BY 4.0)
+             */
+            attribution: string;
+            /** Points */
+            points: components["schemas"]["CloudPoint"][];
+        };
+        /** CloudPoint */
+        CloudPoint: {
+            /** Ts */
+            ts: number;
+            /** Value */
+            value: number | null;
+            /** Count */
+            count: number;
+        };
         /** HTTPValidationError */
         HTTPValidationError: {
             /** Detail */
@@ -64,6 +113,19 @@ export interface components {
             lightning_probability: number;
             /** Note */
             note: string;
+        };
+        /** StationInfo */
+        StationInfo: {
+            /** Id */
+            id: number;
+            /** Name */
+            name: string;
+            /** Lat */
+            lat: number;
+            /** Lon */
+            lon: number;
+            /** Distance Km */
+            distance_km: number;
         };
         /** ValidationError */
         ValidationError: {
@@ -126,6 +188,39 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["MetricsResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    cloud_cover_api_cloud_cover_get: {
+        parameters: {
+            query: {
+                lat: number;
+                lon: number;
+                resolution?: "hourly" | "daily" | "monthly";
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CloudCoverResponse"];
                 };
             };
             /** @description Validation Error */
