@@ -17,7 +17,6 @@ RECENT = "recent"
 STATION_LIST = "station_list"
 _STATION_LIST_ID = 0
 _MONTH_MS = 30 * 24 * 3600 * 1000
-_YEAR_MS = 365 * 24 * 3600 * 1000
 
 
 class NoStationFound(Exception):
@@ -124,7 +123,9 @@ class CloudCoverService:
             except SMHIUnavailable:
                 stale = True
 
-        obs = self.repo.get_observations(station.id, now_ms - _YEAR_MS, now_ms)
+        # Serve the same window we retain (history_months), so the endpoint
+        # exposes everything the cache holds for the station.
+        obs = self.repo.get_observations(station.id, now_ms - self.history_ms, now_ms)
         if not obs and stale:
             raise SMHIUnavailable("SMHI is unavailable and no cached data exists for this station.")
 

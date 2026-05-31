@@ -2,7 +2,7 @@ import httpx
 import pytest
 
 from app.core.config import settings
-from app.dto import StationRaw
+from app.dto import ParsedObs, StationRaw
 from app.services.cloud_cover import (
     CloudCoverService,
     NoStationFound,
@@ -95,6 +95,26 @@ def test_get_cloud_cover_happy_path(repo):
     assert resp.stale is False
     assert len(resp.points) >= 1
     assert resp.station.distance_km >= 0
+
+
+def test_read_window_serves_full_history_months(repo):
+    # An observation older than 365 days but within the 13-month retention
+    # window must still be served (read window tracks history_months, not 365d).
+    client = FakeClient()
+    svc = _service(repo, client)
+    day_ms = 24 * 3600 * 1000
+    old_ts = NOW - 370 * day_ms  # >365d ago, <13mo ago
+    repo.upsert_stations(
+        [StationRaw(id=1, name="Near", lat=59.0, lon=18.0, active=True)]
+    )
+    repo.upsert_observations(1, [ParsedObs(old_ts, 55.0, "G")])
+    # Mark everything already fetched so ensure_cached is a no-op.
+    repo.record_fetch(0, "station_list", NOW, None, None)
+    repo.record_fetch(1, "recent", NOW, old_ts, old_ts)
+    repo.record_fetch(1, "archive", NOW, old_ts, old_ts)
+
+    resp = svc.get_cloud_cover(59.05, 18.05, "hourly", now_ms=NOW)
+    assert any(p.ts == old_ts for p in resp.points)
 
 
 def test_get_cloud_cover_no_station(repo):
