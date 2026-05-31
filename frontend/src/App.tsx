@@ -23,12 +23,12 @@ export default function App() {
       .catch(() => setBackendOk(false));
   }, []);
 
-  // Fetch whenever a location or the resolution changes.
+  // Fetch whenever a location or the resolution changes. Loading state is
+  // started by the handlers that trigger this (handleSelect / changeResolution)
+  // so the effect itself only sets state from async callbacks.
   useEffect(() => {
     if (!selection) return;
     let cancelled = false;
-    setLoading(true);
-    setError(null);
     getCloudCover(selection.lat, selection.lon, resolution)
       .then((d) => {
         if (!cancelled) setData(d);
@@ -48,8 +48,20 @@ export default function App() {
   }, [selection, resolution]);
 
   const handleSelect = useCallback((lat: number, lon: number) => {
+    setLoading(true);
+    setError(null);
     setSelection({ lat, lon });
   }, []);
+
+  const changeResolution = useCallback(
+    (r: Resolution) => {
+      if (r === resolution || !selection) return;
+      setLoading(true);
+      setError(null);
+      setResolution(r);
+    },
+    [resolution, selection],
+  );
 
   return (
     <div className="flex h-screen">
@@ -104,7 +116,7 @@ export default function App() {
                   key={r}
                   role="tab"
                   className={`tab ${r === resolution ? "tab-active" : ""}`}
-                  onClick={() => setResolution(r)}
+                  onClick={() => changeResolution(r)}
                 >
                   {r}
                 </button>
