@@ -108,6 +108,12 @@ export default function App() {
     [resolution, selection],
   );
 
+  const handleClear = useCallback(() => {
+    setSelection(null);
+    setResults({});
+    setLoading(false);
+  }, []);
+
   const series: CloudSeries[] = PARAMS.flatMap((p) => {
     const res = results[p.id];
     if (!res?.data || res.data.points.length === 0) return [];
@@ -135,25 +141,6 @@ export default function App() {
       </div>
 
       <aside className="flex w-96 flex-col gap-4 overflow-y-auto border-l border-base-300 bg-base-200 p-4">
-        <div className="flex items-center gap-1.5 text-xs opacity-60">
-          <span
-            className={`inline-block h-1.5 w-1.5 rounded-full ${
-              backendOk === null
-                ? "bg-base-content/40"
-                : backendOk
-                  ? "bg-success"
-                  : "bg-error"
-            }`}
-          />
-          <span>
-            {backendOk === null
-              ? "checking…"
-              : backendOk
-                ? "api operational"
-                : "api unavailable"}
-          </span>
-        </div>
-
         {!selection ? (
           <div className="rounded-box border border-dashed border-base-300 p-4 text-sm opacity-70">
             Search an address or click anywhere on the map to compare total and
@@ -163,7 +150,17 @@ export default function App() {
           <>
             <div className="card card-compact bg-base-100 shadow-sm">
               <div className="card-body gap-2">
-                <h2 className="card-title text-base">Selected location</h2>
+                <div className="flex items-center justify-between gap-2">
+                  <h2 className="card-title text-base">Selected location</h2>
+                  <button
+                    type="button"
+                    onClick={handleClear}
+                    className="btn btn-ghost btn-xs btn-circle"
+                    aria-label="Clear selection"
+                  >
+                    ✕
+                  </button>
+                </div>
                 <p className="font-mono text-xs opacity-60">
                   {selection.lat.toFixed(5)}, {selection.lon.toFixed(5)}
                 </p>
@@ -234,6 +231,25 @@ export default function App() {
             {attribution && <p className="text-xs opacity-50">{attribution}</p>}
           </>
         )}
+
+        <div className="justify-end flex items-center gap-1.5 text-xs opacity-60">
+          <span
+            className={`inline-block h-1.5 w-1.5 rounded-full ${
+              backendOk === null
+                ? "bg-base-content/40"
+                : backendOk
+                  ? "bg-success"
+                  : "bg-error"
+            }`}
+          />
+          <span>
+            {backendOk === null
+              ? "checking…"
+              : backendOk
+                ? "api operational"
+                : "api unavailable"}
+          </span>
+        </div>
       </aside>
     </div>
   );
