@@ -4,19 +4,28 @@ import "@maptiler/sdk/dist/maptiler-sdk.css";
 import { GeocodingControl } from "@maptiler/geocoding-control/maptilersdk";
 import type { PickEvent } from "@maptiler/geocoding-control/maptilersdk";
 
+import type { LatLon } from "../lib/url-state";
+
 const apiKey = import.meta.env.VITE_MAPTILER_KEY as string | undefined;
+
+// Match the zoom the MapTiler geocoding control flies to for an address pick
+// so a click / URL restore feels equivalent to a search.
+const SELECTED_ZOOM = 18;
 
 type Props = {
   onSelect?: (lat: number, lon: number) => void;
+  selected?: LatLon | null;
 };
 
-export function MapView({ onSelect }: Props) {
+export function MapView({ onSelect, selected }: Props) {
   const containerRef = useRef<HTMLDivElement | null>(null);
+  const mapRef = useRef<maptilersdk.Map | null>(null);
+  const markerRef = useRef<maptilersdk.Marker | null>(null);
   const onSelectRef = useRef(onSelect);
+  // Capture the initial selection so we can center the map on URL-restored
+  // coordinates without making the init effect depend on `selected`.
+  const initialSelectedRef = useRef(selected);
 
-  // Keep ref in sync with the latest prop without re-running the map effect.
-  // useLayoutEffect runs synchronously after DOM updates, before pick events
-  // can fire, so the ref is always current when the callback is invoked.
   useLayoutEffect(() => {
     onSelectRef.current = onSelect;
   });
@@ -26,33 +35,58 @@ export function MapView({ onSelect }: Props) {
     if (!container || !apiKey) return;
 
     maptilersdk.config.apiKey = apiKey;
+    const initial = initialSelectedRef.current;
     const map = new maptilersdk.Map({
       container,
       style: "https://api.maptiler.com/maps/hybrid-v4/style.json",
-      center: [15.0, 62.0], // Sweden [lng, lat]
-      zoom: 4,
+      center: initial ? [initial.lon, initial.lat] : [15.0, 62.0],
+      zoom: initial ? SELECTED_ZOOM : 4,
     });
+    mapRef.current = map;
 
     const gc = new GeocodingControl({ apiKey });
     map.addControl(gc);
 
-    // In v3, GeocodingControl uses the MapTiler SDK event system:
-    // gc.on(eventName, listener) returns a Subscription with unsubscribe().
-    // The PickEvent has `feature` directly on the event object (BaseEvent &
-    // { feature: Feature | undefined }) — not via event.detail.
-    // Feature.center is [lng, lat] (Position = [x, y]), so lat = coords[1].
-    const subscription = gc.on("pick", (event: PickEvent) => {
+    // PickEvent.feature.center is [lng, lat] (Position).
+    const pickSub = gc.on("pick", (event: PickEvent) => {
       const coords = event.feature?.center;
-      if (coords) {
-        onSelectRef.current?.(coords[1], coords[0]);
-      }
+      if (coords) onSelectRef.current?.(coords[1], coords[0]);
+    });
+
+    map.on("click", (event) => {
+      const { lng, lat } = event.lngLat;
+      map.flyTo({ center: [lng, lat], zoom: SELECTED_ZOOM });
+      onSelectRef.current?.(lat, lng);
     });
 
     return () => {
-      subscription.unsubscribe();
+      pickSub.unsubscribe();
+      markerRef.current?.remove();
+      markerRef.current = null;
       map.remove();
+      mapRef.current = null;
     };
   }, []);
+
+  // Keep a single marker in sync with the selected coordinate. Reuses the
+  // marker across updates so clicks/picks don't flicker.
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+    if (!selected) {
+      markerRef.current?.remove();
+      markerRef.current = null;
+      return;
+    }
+    const lngLat: [number, number] = [selected.lon, selected.lat];
+    if (markerRef.current) {
+      markerRef.current.setLngLat(lngLat);
+    } else {
+      markerRef.current = new maptilersdk.Marker({ color: "#f43f5e" })
+        .setLngLat(lngLat)
+        .addTo(map);
+    }
+  }, [selected]);
 
   if (!apiKey) {
     return (

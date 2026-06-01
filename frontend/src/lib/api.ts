@@ -17,13 +17,16 @@ export async function getHealth() {
   return data;
 }
 
+export type CloudParam = 16 | 29;
+
 export async function getCloudCover(
   lat: number,
   lon: number,
   resolution: Resolution,
+  param: CloudParam,
 ): Promise<CloudCover> {
   const { data, error, response } = await client.GET("/api/cloud-cover", {
-    params: { query: { lat, lon, resolution } },
+    params: { query: { lat, lon, resolution, param } },
   });
   if (data) return data;
   // Surface the backend's status so the UI can show a useful message.

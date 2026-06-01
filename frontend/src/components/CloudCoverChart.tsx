@@ -2,7 +2,6 @@ import { useMemo } from "react";
 import {
   CategoryScale,
   Chart as ChartJS,
-  Filler,
   Legend,
   LinearScale,
   LineElement,
@@ -19,14 +18,21 @@ ChartJS.register(
   LinearScale,
   PointElement,
   LineElement,
-  Filler,
   Title,
   Tooltip,
   Legend,
 );
 
-type Props = {
+export type CloudSeries = {
+  param: number;
+  label: string;
+  unit: string; // "percent" | "octas"
+  color: string;
   data: CloudCover;
+};
+
+type Props = {
+  series: CloudSeries[];
   resolution: Resolution;
 };
 
@@ -54,25 +60,38 @@ function formatLabel(tsMs: number, resolution: Resolution): string {
   });
 }
 
-export function CloudCoverChart({ data, resolution }: Props) {
+export function CloudCoverChart({ series, resolution }: Props) {
+  // The two series may come from different stations with different timestamps,
+  // so build one sorted union of all bucket timestamps and align each series to
+  // it (null where a series has no sample at that timestamp).
+  const timeline = useMemo(() => {
+    const all = new Set<number>();
+    for (const s of series) for (const p of s.data.points) all.add(p.ts);
+    return [...all].sort((a, b) => a - b);
+  }, [series]);
+
   const chartData = useMemo(
     () => ({
-      labels: data.points.map((p) => formatLabel(p.ts, resolution)),
-      datasets: [
-        {
-          label: "Cloud cover (%)",
-          data: data.points.map((p) => p.value),
-          borderColor: "oklch(60% 0.13 250)",
-          backgroundColor: "oklch(60% 0.13 250 / 0.15)",
-          fill: true,
+      labels: timeline.map((ts) => formatLabel(ts, resolution)),
+      datasets: series.map((s) => {
+        const byTs = new Map(s.data.points.map((p) => [p.ts, p.value]));
+        return {
+          label: `${s.label} (${s.unit})`,
+          data: timeline.map((ts) => (byTs.has(ts) ? byTs.get(ts)! : null)),
+          borderColor: s.color,
+          backgroundColor: s.color,
+          yAxisID: s.unit === "octas" ? "yOctas" : "yPercent",
           spanGaps: false, // leave a gap where value is null (no usable data)
           pointRadius: resolution === "hourly" ? 0 : 2,
           tension: 0.2,
-        },
-      ],
+        };
+      }),
     }),
-    [data, resolution],
+    [series, timeline, resolution],
   );
+
+  const hasPercent = series.some((s) => s.unit === "percent");
+  const hasOctas = series.some((s) => s.unit === "octas");
 
   const options = useMemo(
     () => ({
@@ -80,26 +99,32 @@ export function CloudCoverChart({ data, resolution }: Props) {
       maintainAspectRatio: false,
       interaction: { mode: "index" as const, intersect: false },
       scales: {
-        y: {
+        yPercent: {
+          type: "linear" as const,
+          display: hasPercent,
+          position: "left" as const,
           min: 0,
           max: 100,
-          title: { display: true, text: "Cloud cover (%)" },
+          title: { display: true, text: "Total cloud (%)" },
+        },
+        yOctas: {
+          type: "linear" as const,
+          display: hasOctas,
+          position: "right" as const,
+          min: 0,
+          max: 8,
+          grid: { drawOnChartArea: false },
+          title: { display: true, text: "Low cloud (octas)" },
         },
         x: {
           ticks: { maxTicksLimit: 8, autoSkip: true },
         },
       },
       plugins: {
-        legend: { display: false },
-        tooltip: {
-          callbacks: {
-            label: (ctx: { parsed: { y: number | null } }) =>
-              ctx.parsed.y == null ? "no data" : `${ctx.parsed.y}%`,
-          },
-        },
+        legend: { display: true },
       },
     }),
-    [],
+    [hasPercent, hasOctas],
   );
 
   return <Line data={chartData} options={options} />;

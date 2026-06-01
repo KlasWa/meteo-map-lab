@@ -45,12 +45,11 @@ export interface components {
         /** CloudCoverResponse */
         CloudCoverResponse: {
             station: components["schemas"]["StationInfo"];
+            /** Param */
+            param: number;
             /** Resolution */
             resolution: string;
-            /**
-             * Unit
-             * @default percent
-             */
+            /** Unit */
             unit: string;
             /**
              * Stale
@@ -65,6 +64,13 @@ export interface components {
             /** Points */
             points: components["schemas"]["CloudPoint"][];
         };
+        /**
+         * CloudParam
+         * @description Supported SMHI cloud parameters, as an integer enum so the query value
+         *     is validated (422 on anything else) and surfaces as an int enum in OpenAPI.
+         * @enum {integer}
+         */
+        CloudParam: 16 | 29;
         /** CloudPoint */
         CloudPoint: {
             /** Ts */
@@ -145,6 +151,7 @@ export interface operations {
                 lat: number;
                 lon: number;
                 resolution?: "hourly" | "daily" | "monthly";
+                param?: components["schemas"]["CloudParam"];
             };
             header?: never;
             path?: never;

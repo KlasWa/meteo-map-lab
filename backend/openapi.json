@@ -66,6 +66,15 @@
               "default": "daily",
               "title": "Resolution"
             }
+          },
+          {
+            "name": "param",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/CloudParam",
+              "default": 16
+            }
           }
         ],
         "responses": {
@@ -100,14 +109,17 @@
           "station": {
             "$ref": "#/components/schemas/StationInfo"
           },
+          "param": {
+            "type": "integer",
+            "title": "Param"
+          },
           "resolution": {
             "type": "string",
             "title": "Resolution"
           },
           "unit": {
             "type": "string",
-            "title": "Unit",
-            "default": "percent"
+            "title": "Unit"
           },
           "stale": {
             "type": "boolean",
@@ -130,10 +142,21 @@
         "type": "object",
         "required": [
           "station",
+          "param",
           "resolution",
+          "unit",
           "points"
         ],
         "title": "CloudCoverResponse"
+      },
+      "CloudParam": {
+        "type": "integer",
+        "enum": [
+          16,
+          29
+        ],
+        "title": "CloudParam",
+        "description": "Supported SMHI cloud parameters, as an integer enum so the query value\nis validated (422 on anything else) and surfaces as an int enum in OpenAPI."
       },
       "CloudPoint": {
         "properties": {
