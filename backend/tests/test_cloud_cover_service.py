@@ -18,6 +18,7 @@ class FakeClient:
         self.recent_calls = 0
         self.archive_calls = 0
         self.fail_recent = False
+        self.recent_404 = False
 
     def fetch_station_list(self):
         self.station_calls += 1
@@ -25,6 +26,11 @@ class FakeClient:
 
     def fetch_recent(self, station_id):
         self.recent_calls += 1
+        if self.recent_404:
+            req = httpx.Request("GET", "http://smhi/latest-months")
+            raise httpx.HTTPStatusError(
+                "404", request=req, response=httpx.Response(404, request=req)
+            )
         if self.fail_recent:
             raise httpx.ConnectError("boom")
         return {"value": [{"date": NOW - 3600_000, "value": "40", "quality": "G"}]}
@@ -84,6 +90,19 @@ def test_recent_failure_raises_smhi_unavailable(repo):
         svc.ensure_cached(1, now_ms=NOW)
     # No recent ledger written -> will retry next time
     assert repo.get_fetch_log(1, "recent") is None
+
+
+def test_recent_404_falls_back_to_archive(repo):
+    # An active station can still lack a latest-months file (404). That must not
+    # fail the request: skip the recent window and serve the archive instead.
+    client = FakeClient()
+    client.recent_404 = True
+    svc = _service(repo, client)
+    svc.ensure_cached(1, now_ms=NOW)  # must not raise despite the 404
+    assert client.recent_calls == 1
+    assert client.archive_calls == 1  # fell through to the archive
+    # The 404 is recorded so we don't re-hammer SMHI within the TTL.
+    assert repo.get_fetch_log(1, "recent") is not None
 
 
 def test_get_cloud_cover_happy_path(repo):

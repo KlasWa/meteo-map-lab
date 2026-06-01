@@ -28,6 +28,21 @@ def test_nearest_station_respects_max_km(repo):
     assert repo.nearest_station(0.0, 0.0, max_km=150.0) is None
 
 
+def test_nearest_station_skips_inactive(repo):
+    # A closed station (active=False) has no latest-months data on SMHI, so it
+    # would 404 on fetch_recent. nearest_station must skip it even when it is
+    # geographically closer than an active one.
+    repo.upsert_stations(
+        [
+            StationRaw(id=1, name="Closed", lat=59.0, lon=18.0, active=False),
+            StationRaw(id=2, name="Open", lat=59.2, lon=18.2, active=True),
+        ]
+    )
+    nearest = repo.nearest_station(59.0, 18.0, max_km=150.0)
+    assert nearest is not None
+    assert nearest.id == 2
+
+
 def test_upsert_observations_dedupes_on_station_ts(repo):
     repo.upsert_stations(_stations())
     repo.upsert_observations(1, [ParsedObs(1000, 50.0, "Y")])

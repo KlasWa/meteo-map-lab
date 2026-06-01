@@ -11,7 +11,9 @@ class Settings(BaseSettings):
     history_months: int = 13  # how far back to retain/serve
     recent_ttl_seconds: int = 3600  # re-fetch latest-months window after this
     station_list_ttl_days: int = 30  # refresh station list after this
-    nearest_max_km: float = 150.0  # reject coordinates with no station within
+    nearest_max_km: float = 250.0  # reject coordinates with no station within
+    # (wider than typical: active param-16 stations are sparse since manual
+    # cloud obs are being phased out — see param 29 for denser coverage)
 
 
 settings = Settings()

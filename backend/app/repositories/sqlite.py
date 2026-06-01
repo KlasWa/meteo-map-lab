@@ -50,8 +50,10 @@ class SqliteRepository(CacheRepository):
             return len(s.exec(select(Station.id)).all())
 
     def nearest_station(self, lat: float, lon: float, max_km: float) -> StationRaw | None:
+        # Only active stations have a latest-months data file on SMHI; closed
+        # stations would 404 on fetch_recent, so they are not selectable.
         with Session(self._engine) as s:
-            stations = s.exec(select(Station)).all()
+            stations = s.exec(select(Station).where(Station.active == True)).all()  # noqa: E712
         best: Station | None = None
         best_d: float | None = None
         for st in stations:

@@ -82,11 +82,19 @@ class CloudCoverService:
         if recent_log is None or now_ms - recent_log.fetched_at > self.recent_ttl_ms:
             try:
                 payload = self.client.fetch_recent(station_id)
+            except httpx.HTTPStatusError as exc:
+                if exc.response.status_code != 404:
+                    raise SMHIUnavailable(str(exc)) from exc
+                # No latest-months file for this station (it exists but has no
+                # recent data). Not an outage: record the attempt so we honor
+                # the TTL, then fall through to the archive.
+                self.repo.record_fetch(station_id, RECENT, now_ms, None, None)
             except httpx.HTTPError as exc:
                 raise SMHIUnavailable(str(exc)) from exc
-            obs = parse_recent_json(payload)
-            self.repo.upsert_observations(station_id, obs)
-            self.repo.record_fetch(station_id, RECENT, now_ms, _min_ts(obs), _max_ts(obs))
+            else:
+                obs = parse_recent_json(payload)
+                self.repo.upsert_observations(station_id, obs)
+                self.repo.record_fetch(station_id, RECENT, now_ms, _min_ts(obs), _max_ts(obs))
 
         # Archive: fetch once, then never again (immutable).
         archive_log = self.repo.get_fetch_log(station_id, ARCHIVE)
