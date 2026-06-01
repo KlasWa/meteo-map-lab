@@ -1,3 +1,4 @@
+from enum import IntEnum
 from functools import lru_cache
 from typing import Literal
 
@@ -16,6 +17,14 @@ from app.services.cloud_cover import (
 from app.services.smhi import SMHIClient
 
 router = APIRouter()
+
+
+class CloudParam(IntEnum):
+    """Supported SMHI cloud parameters, as an integer enum so the query value
+    is validated (422 on anything else) and surfaces as an int enum in OpenAPI."""
+
+    TOTAL = 16  # total cloud cover, percent
+    LOW = 29  # low-cloud amount, octas
 
 
 @lru_cache(maxsize=1)
@@ -41,13 +50,11 @@ def cloud_cover(
     lat: float,
     lon: float,
     resolution: Literal["hourly", "daily", "monthly"] = "daily",
-    param: int = 16,
+    param: CloudParam = CloudParam.TOTAL,
     service: CloudCoverService = Depends(get_cloud_cover_service),
 ) -> CloudCoverResponse:
-    if param not in (16, 29):
-        raise HTTPException(status_code=422, detail="param must be 16 or 29")
     try:
-        return service.get_cloud_cover(lat, lon, resolution, param=param)
+        return service.get_cloud_cover(lat, lon, resolution, param=int(param))
     except NoStationFound as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except SMHIUnavailable as exc:
