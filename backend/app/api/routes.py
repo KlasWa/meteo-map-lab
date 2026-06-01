@@ -4,6 +4,8 @@ from typing import Literal
 from fastapi import APIRouter, Depends, HTTPException
 
 from app.core.config import settings
+from app.db.session import engine
+from app.repositories.sqlite import SqliteRepository
 from app.schemas.cloud_cover import CloudCoverResponse
 from app.schemas.health import HealthResponse
 from app.services.cloud_cover import (
@@ -20,10 +22,10 @@ router = APIRouter()
 def get_cloud_cover_service() -> CloudCoverService:
     """Lazily build a process-wide CloudCoverService. Overridable in tests via
     app.dependency_overrides."""
-    from app.db.session import engine
-    from app.repositories.sqlite import SqliteRepository
 
-    client = SMHIClient(base_url=settings.smhi_base_url, param=settings.cloud_cover_param)
+    client = SMHIClient(
+        base_url=settings.smhi_base_url, param=settings.cloud_cover_param
+    )
     return CloudCoverService(client, SqliteRepository(engine), settings)
 
 

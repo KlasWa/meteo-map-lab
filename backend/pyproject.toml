@@ -13,6 +13,7 @@ dependencies = [
 
 [dependency-groups]
 dev = [
+    "debugpy>=1.8.20",
     "pylint>=3.3",
     "pytest>=8.3",
     "ruff>=0.8",
@@ -23,6 +24,11 @@ package = false
 
 [tool.ruff]
 line-length = 100
+
+[tool.ruff.lint]
+# E/F are ruff's defaults; I adds import sorting (isort) so `ruff check --fix`
+# and editor "organize imports" can auto-sort import blocks.
+select = ["E", "F", "I"]
 
 [tool.pylint.format]
 max-line-length = 100

@@ -1,0 +1,26 @@
+{
+  // The Python tooling lives in backend/ (its own pyproject.toml + venv).
+  // Point the editor's linters/formatters there so they read the project's
+  // [tool.pylint] / [tool.ruff] config instead of running at the repo root
+  // with defaults (which is why C0115/C0116 kept showing up).
+  "python.defaultInterpreterPath": "${workspaceFolder}/backend/.venv/bin/python",
+
+  // Pylint: run from backend/ so pyproject.toml's [tool.pylint] disable list
+  // (missing-class-docstring / missing-function-docstring) is honored.
+  "pylint.cwd": "${workspaceFolder}/backend",
+  "pylint.args": ["--rcfile=${workspaceFolder}/backend/pyproject.toml"],
+  "pylint.importStrategy": "fromEnvironment",
+
+  // Ruff: format + auto-sort imports (the "I" rule) on save.
+  "ruff.configuration": "${workspaceFolder}/backend/pyproject.toml",
+  "ruff.importStrategy": "fromEnvironment",
+
+  "[python]": {
+    "editor.defaultFormatter": "charliermarsh.ruff",
+    "editor.formatOnSave": true,
+    "editor.codeActionsOnSave": {
+      "source.fixAll.ruff": "explicit",
+      "source.organizeImports.ruff": "explicit"
+    }
+  }
+}

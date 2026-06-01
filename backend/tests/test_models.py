@@ -1,5 +1,5 @@
-from sqlmodel import Session, SQLModel, create_engine
 from sqlalchemy.pool import StaticPool
+from sqlmodel import Session, SQLModel, create_engine
 
 import app.models  # noqa: F401  (ensure tables registered)
 from app.models import Observation, Station

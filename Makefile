@@ -1,12 +1,19 @@
 COMPOSE = docker compose -f .devcontainer/docker-compose.yml
+COMPOSE_DEBUG = docker compose -f .devcontainer/docker-compose.yml -f .devcontainer/docker-compose.debug.yml
 
-.PHONY: up down rebuild test gen-schema gen-types gen-api
+.PHONY: up down rebuild debug test gen-schema gen-types gen-api
 
 up:
 	$(COMPOSE) up --build
 
 down:
 	$(COMPOSE) down
+
+# Like `up`, but the backend runs under debugpy (port 5678) and waits for a
+# debugger to attach before starting. Use VS Code's "Attach to API (Docker)"
+# launch config. The frontend still runs normally.
+debug:
+	$(COMPOSE_DEBUG) up --build
 
 # Drop anonymous volumes (notably frontend node_modules) and bring the stack
 # back up. Use this when package.json / pyproject.toml deps change, otherwise
