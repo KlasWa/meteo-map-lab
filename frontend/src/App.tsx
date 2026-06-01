@@ -12,9 +12,14 @@ const RESOLUTIONS: Resolution[] = ["hourly", "daily", "monthly"];
 
 // The two SMHI parameters shown together. Param 16 (percent) and 29 (octas)
 // have different units, so each maps to its own Y-axis in the chart.
-const PARAMS: { id: CloudParam; label: string; color: string }[] = [
-  { id: 16, label: "Total cloud cover", color: "oklch(60% 0.13 250)" },
-  { id: 29, label: "Low cloud amount", color: "oklch(70% 0.17 50)" },
+const PARAMS: {
+  id: CloudParam;
+  label: string;
+  color: string;
+  axis: "yPercent" | "yOctas";
+}[] = [
+  { id: 16, label: "Total cloud cover", color: "oklch(60% 0.13 250)", axis: "yPercent" },
+  { id: 29, label: "Low cloud amount", color: "oklch(70% 0.17 50)", axis: "yOctas" },
 ];
 
 type ParamResult = { data: CloudCover | null; error: string | null };
@@ -22,13 +27,13 @@ type ParamResult = { data: CloudCover | null; error: string | null };
 export default function App() {
   const [backendOk, setBackendOk] = useState<boolean | null>(null);
   // Initialize from the URL so a reload (or shared link) restores the
-  // selection. Loading starts true in that case since the fetch effect will
-  // immediately fire — handlers set loading for subsequent picks/clicks.
-  const initialSelection = readLatLonFromUrl();
-  const [selection, setSelection] = useState<LatLon | null>(initialSelection);
+  // selection (lazy initializer reads the URL once, not on every render).
+  // Loading starts true in that case since the fetch effect fires immediately
+  // — handlers set loading for subsequent picks/clicks.
+  const [selection, setSelection] = useState<LatLon | null>(readLatLonFromUrl);
   const [resolution, setResolution] = useState<Resolution>("daily");
   const [results, setResults] = useState<Record<number, ParamResult>>({});
-  const [loading, setLoading] = useState(initialSelection !== null);
+  const [loading, setLoading] = useState(selection !== null);
 
   useEffect(() => {
     getHealth()
@@ -87,6 +92,7 @@ export default function App() {
     (r: Resolution) => {
       if (r === resolution || !selection) return;
       setLoading(true);
+      setResults({});
       setResolution(r);
     },
     [resolution, selection],
@@ -100,6 +106,7 @@ export default function App() {
         param: p.id,
         label: res.data.station.name,
         unit: res.data.unit,
+        axis: p.axis,
         color: p.color,
         data: res.data,
       },

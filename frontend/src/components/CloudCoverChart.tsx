@@ -26,7 +26,8 @@ ChartJS.register(
 export type CloudSeries = {
   param: number;
   label: string;
-  unit: string; // "percent" | "octas"
+  unit: string; // "percent" | "octas" — shown in the legend label
+  axis: "yPercent" | "yOctas"; // which Y-axis this series draws against
   color: string;
   data: CloudCover;
 };
@@ -80,7 +81,7 @@ export function CloudCoverChart({ series, resolution }: Props) {
           data: timeline.map((ts) => (byTs.has(ts) ? byTs.get(ts)! : null)),
           borderColor: s.color,
           backgroundColor: s.color,
-          yAxisID: s.unit === "octas" ? "yOctas" : "yPercent",
+          yAxisID: s.axis,
           spanGaps: false, // leave a gap where value is null (no usable data)
           pointRadius: resolution === "hourly" ? 0 : 2,
           tension: 0.2,
@@ -90,8 +91,8 @@ export function CloudCoverChart({ series, resolution }: Props) {
     [series, timeline, resolution],
   );
 
-  const hasPercent = series.some((s) => s.unit === "percent");
-  const hasOctas = series.some((s) => s.unit === "octas");
+  const hasPercent = series.some((s) => s.axis === "yPercent");
+  const hasOctas = series.some((s) => s.axis === "yOctas");
 
   const options = useMemo(
     () => ({
