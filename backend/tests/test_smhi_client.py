@@ -69,6 +69,15 @@ def test_fetch_archive_returns_text():
     assert "Total molnmängd" in text
 
 
+def test_fetch_archive_uses_param():
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert "/parameter/29/" in request.url.path
+        assert "corrected-archive/data.csv" in request.url.path
+        return httpx.Response(200, text="")
+
+    _client_with(handler).fetch_archive(92410, param=29)
+
+
 def test_http_error_propagates():
     def handler(request: httpx.Request) -> httpx.Response:
         return httpx.Response(500)
