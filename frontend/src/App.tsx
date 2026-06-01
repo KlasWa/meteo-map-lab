@@ -22,6 +22,25 @@ const PERIODS: { label: string; months: number | null }[] = [
 ];
 const DAY_MS = 24 * 60 * 60 * 1000;
 
+// Initial great-circle bearing (compass degrees, 0 = north, clockwise) from
+// point 1 to point 2. Used to rotate the "direction to station" arrow.
+function bearingDeg(
+  lat1: number,
+  lon1: number,
+  lat2: number,
+  lon2: number,
+): number {
+  const toRad = (d: number) => (d * Math.PI) / 180;
+  const lat1r = toRad(lat1);
+  const lat2r = toRad(lat2);
+  const dLon = toRad(lon2 - lon1);
+  const y = Math.sin(dLon) * Math.cos(lat2r);
+  const x =
+    Math.cos(lat1r) * Math.sin(lat2r) -
+    Math.sin(lat1r) * Math.cos(lat2r) * Math.cos(dLon);
+  return ((Math.atan2(y, x) * 180) / Math.PI + 360) % 360;
+}
+
 // The two SMHI parameters shown together. Param 16 (percent) and 29 (octas)
 // have different units, so each maps to its own Y-axis in the chart.
 const PARAMS: {
@@ -127,6 +146,16 @@ export default function App() {
     setLoading(false);
   }, []);
 
+  // A map click clears the current selection if one exists (toggle), otherwise
+  // selects the clicked point. (Geocoding-search picks always select.)
+  const handleMapClick = useCallback(
+    (lat: number, lon: number) => {
+      if (selection) handleClear();
+      else handleSelect(lat, lon);
+    },
+    [selection, handleClear, handleSelect],
+  );
+
   // Filter the fetched points to the selected period. Window relative to the
   // most recent data point (avoids an impure Date.now() in render and tracks
   // the latest available data, which can lag "now"). Points are sorted ascending,
@@ -163,7 +192,11 @@ export default function App() {
   return (
     <div className="flex h-screen">
       <div className="relative flex-1">
-        <MapView onSelect={handleSelect} selected={selection} />
+        <MapView
+          onSelect={handleSelect}
+          onMapClick={handleMapClick}
+          selected={selection}
+        />
       </div>
 
       <aside className="flex w-96 flex-col gap-4 overflow-y-auto border-l border-base-300 bg-base-200 p-4">
@@ -204,9 +237,30 @@ export default function App() {
                         />
                         <span className="font-semibold">{p.label}:</span>
                         {res?.data ? (
-                          <span className="opacity-70">
-                            {res.data.station.name} (
-                            {res.data.station.distance_km} km)
+                          <span className="flex items-center gap-1 opacity-70">
+                            <span>
+                              {res.data.station.name} (
+                              {res.data.station.distance_km} km)
+                            </span>
+                            <svg
+                              viewBox="0 0 24 24"
+                              className="h-3 w-3 shrink-0"
+                              style={{
+                                transform: `rotate(${bearingDeg(
+                                  selection.lat,
+                                  selection.lon,
+                                  res.data.station.lat,
+                                  res.data.station.lon,
+                                )}deg)`,
+                              }}
+                              role="img"
+                              aria-label="Direction to station"
+                            >
+                              <path
+                                d="M12 2 L18 13 L13 13 L13 22 L11 22 L11 13 L6 13 Z"
+                                fill="currentColor"
+                              />
+                            </svg>
                           </span>
                         ) : res?.error ? (
                           <span className="opacity-50">{res.error}</span>

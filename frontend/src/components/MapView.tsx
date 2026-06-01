@@ -14,20 +14,25 @@ const SELECTED_ZOOM = 18;
 
 type Props = {
   onSelect?: (lat: number, lon: number) => void;
+  onMapClick?: (lat: number, lon: number) => void;
   selected?: LatLon | null;
 };
 
-export function MapView({ onSelect, selected }: Props) {
+export function MapView({ onSelect, onMapClick, selected }: Props) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<maptilersdk.Map | null>(null);
   const markerRef = useRef<maptilersdk.Marker | null>(null);
   const onSelectRef = useRef(onSelect);
+  const onMapClickRef = useRef(onMapClick);
+  const selectedRef = useRef(selected);
   // Capture the initial selection so we can center the map on URL-restored
   // coordinates without making the init effect depend on `selected`.
   const initialSelectedRef = useRef(selected);
 
   useLayoutEffect(() => {
     onSelectRef.current = onSelect;
+    onMapClickRef.current = onMapClick;
+    selectedRef.current = selected;
   });
 
   useEffect(() => {
@@ -55,8 +60,12 @@ export function MapView({ onSelect, selected }: Props) {
 
     map.on("click", (event) => {
       const { lng, lat } = event.lngLat;
-      map.flyTo({ center: [lng, lat], zoom: SELECTED_ZOOM });
-      onSelectRef.current?.(lat, lng);
+      // If something is already selected, a map click clears it (handled by the
+      // parent); only fly in when the click is actually selecting a new spot.
+      if (!selectedRef.current) {
+        map.flyTo({ center: [lng, lat], zoom: SELECTED_ZOOM });
+      }
+      onMapClickRef.current?.(lat, lng);
     });
 
     return () => {
