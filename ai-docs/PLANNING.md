@@ -95,14 +95,17 @@ geocoding → MapTiler). Capture future open decisions as specs in
 
 1. User enters an address (MapTiler geocoding) or clicks the map.
 2. The selection resolves to latitude/longitude.
-3. Frontend calls `GET /api/cloud-cover?lat=&lon=&resolution=` for the
-   chosen granularity (hourly/daily/monthly).
-4. Backend resolves the coordinate to the nearest SMHI station, serving cached
-   data or fetching from SMHI when missing/stale (archive fetched once,
-   recent window refreshed on a TTL).
+3. Frontend calls `GET /api/cloud-cover?lat=&lon=&resolution=&param=` once per
+   parameter (16 = total cloud %, 29 = low-cloud octas) at the chosen
+   granularity (hourly/daily/monthly).
+4. Backend resolves the coordinate to the nearest active SMHI station for that
+   parameter, serving cached data or fetching from SMHI when missing/stale
+   (archive fetched once, recent window refreshed on a TTL).
 5. Backend aggregates hourly observations into the requested resolution and
-   returns the series (with a `stale` flag and SMHI attribution).
-6. Frontend renders the Chart.js line chart.
+   returns the series in the parameter's native unit (with `param`, `unit`, a
+   `stale` flag, and SMHI attribution).
+6. Frontend overlays both parameters on a Chart.js line chart with separate
+   Y-axes (percent left, octas right).
 
 > Lightning probability is not yet implemented; the flow above currently
 > covers cloud cover only.
@@ -128,10 +131,15 @@ geocoding → MapTiler). Capture future open decisions as specs in
    stale-serve fallback. ✅ Done.
 4. **Cloud-cover visualization** — Chart.js line chart in the frontend with a
    hourly/daily/monthly toggle, driven by map location selection. ✅ Done.
-5. **Lightning-strike probability** — separate SMHI parameter + calculation,
+5. **Multi-parameter cloud cover** — serve SMHI param 29 (low-cloud amount,
+   octas) alongside param 16 (total cloud, percent), cached/aggregated
+   identically and overlaid on a dual-axis chart; `param` is a first-class
+   dimension across client/service/cache/API. ✅ Done (see
+   `docs/superpowers/plans/2026-06-01-multi-parameter-cloud-cover.md`).
+6. **Lightning-strike probability** — separate SMHI parameter + calculation,
    exposed and charted. ⏳ Not started.
-6. **Deployment** — Terraform for hosted environments. ⏳ Not started.
-7. **Bonus** — GitHub Actions CI/CD; AI forecasting. ⏳ Not started.
+7. **Deployment** — Terraform for hosted environments. ⏳ Not started.
+8. **Bonus** — GitHub Actions CI/CD; AI forecasting. ⏳ Not started.
 
 > Deferred within the cloud-cover work (see spec §9): scheduled background
 > refresh, multi-station "region" aggregation, quality-code filtering, and an
@@ -152,4 +160,4 @@ geocoding → MapTiler). Capture future open decisions as specs in
 - **`specs/`** — one file per feature/decision before it is built. Use the
   spec workflow (`/spec-generate` → `/spec-implement` → `/spec-finish`).
 
-_Last updated: 2026-05-31 (cloud-cover ingest, API, and charts complete)._
+_Last updated: 2026-06-01 (multi-parameter cloud cover: param 16 + 29 overlaid on a dual-axis chart)._
