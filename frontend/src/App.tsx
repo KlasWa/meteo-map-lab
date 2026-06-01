@@ -142,7 +142,7 @@ export default function App() {
 
       <aside className="flex w-96 flex-col gap-4 overflow-y-auto border-l border-base-300 bg-base-200 p-4">
         {!selection ? (
-          <div className="rounded-box border border-dashed border-base-300 p-4 text-sm opacity-70">
+          <div className="rounded-box border border-dashed border-white p-4 text-sm opacity-70">
             Search an address or click anywhere on the map to compare total and
             low cloud cover for the past year.
           </div>
@@ -232,7 +232,7 @@ export default function App() {
           </>
         )}
 
-        <div className="justify-end flex items-center gap-1.5 text-xs opacity-60">
+        <div className="mt-auto flex items-center justify-end gap-1.5 text-xs opacity-60">
           <span
             className={`inline-block h-1.5 w-1.5 rounded-full ${
               backendOk === null
