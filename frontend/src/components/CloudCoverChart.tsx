@@ -123,6 +123,20 @@ export function CloudCoverChart({ series, resolution }: Props) {
       },
       plugins: {
         legend: { display: true },
+        tooltip: {
+          callbacks: {
+            label: (ctx: {
+              dataset: { label?: string; yAxisID?: string };
+              parsed: { y: number | null };
+            }) => {
+              const y = ctx.parsed.y;
+              const name = ctx.dataset.label ?? "";
+              if (y == null) return `${name}: no data`;
+              const suffix = ctx.dataset.yAxisID === "yOctas" ? " octas" : "%";
+              return `${name}: ${y}${suffix}`;
+            },
+          },
+        },
       },
     }),
     [hasPercent, hasOctas],

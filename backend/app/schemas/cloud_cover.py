@@ -3,7 +3,7 @@ from pydantic import BaseModel
 
 class CloudPoint(BaseModel):
     ts: int  # epoch ms, UTC (bucket start for daily/monthly)
-    value: float | None  # mean cloud %, None when no usable samples
+    value: float | None  # mean value in native unit (% or octas), None = no usable samples
     count: int  # usable (non-null) samples in the bucket
 
 
