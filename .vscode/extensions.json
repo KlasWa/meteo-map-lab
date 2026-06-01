@@ -3,6 +3,7 @@
     "ms-python.python",
     "ms-python.debugpy",
     "ms-python.pylint",
-    "charliermarsh.ruff"
+    "charliermarsh.ruff",
+    "esbenp.prettier-vscode"
   ]
 }
