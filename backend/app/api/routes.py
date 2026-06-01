@@ -41,12 +41,13 @@ def cloud_cover(
     lat: float,
     lon: float,
     resolution: Literal["hourly", "daily", "monthly"] = "daily",
-    param: Literal["16", "29"] = "16",
+    param: int = 16,
     service: CloudCoverService = Depends(get_cloud_cover_service),
 ) -> CloudCoverResponse:
+    if param not in (16, 29):
+        raise HTTPException(status_code=422, detail="param must be 16 or 29")
     try:
-        param_int = int(param)
-        return service.get_cloud_cover(lat, lon, resolution, param=param_int)
+        return service.get_cloud_cover(lat, lon, resolution, param=param)
     except NoStationFound as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except SMHIUnavailable as exc:
