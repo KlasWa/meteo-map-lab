@@ -36,3 +36,29 @@ def test_parse_recent_json():
 
 def test_parse_recent_json_handles_missing_value_key():
     assert parse_recent_json({}) == []
+
+
+def test_parse_recent_json_octas_with_param29_indeterminate():
+    # Param 29 reports octas 0-8; code 9 = "sky obscured" -> None.
+    payload = {
+        "value": [
+            {"date": 1735689600000, "value": "8", "quality": "G"},
+            {"date": 1735693200000, "value": "9", "quality": "G"},
+            {"date": 1735696800000, "value": "0", "quality": "G"},
+        ]
+    }
+    obs = parse_recent_json(payload, indeterminate=frozenset({9.0}))
+    assert obs[0].cloud_pct == 8.0
+    assert obs[1].cloud_pct is None  # 9 = obscured
+    assert obs[2].cloud_pct == 0.0  # zero is real
+
+
+def test_parse_archive_csv_respects_custom_indeterminate():
+    text = (
+        "Datum;Tid (UTC);Molnmängd;Kvalitet;;\n"
+        "2025-01-01;00:00:00;9;G;;\n"
+        "2025-01-01;01:00:00;3;G;;\n"
+    )
+    obs = parse_archive_csv(text, indeterminate=frozenset({9.0}))
+    assert obs[0].cloud_pct is None
+    assert obs[1].cloud_pct == 3.0

@@ -8,7 +8,7 @@ from datetime import datetime, timezone
 
 from app.dto import ParsedObs
 
-_INDETERMINATE = 113.0
+_DEFAULT_INDETERMINATE = frozenset({113.0})
 
 
 def _to_ms(date_str: str, time_str: str) -> int:
@@ -18,17 +18,19 @@ def _to_ms(date_str: str, time_str: str) -> int:
     return int(dt.timestamp() * 1000)
 
 
-def _parse_value(raw: str | None) -> float | None:
+def _parse_value(raw: str | None, indeterminate: frozenset[float]) -> float | None:
     if raw is None:
         return None
     raw = raw.strip()
     if raw == "":
         return None
     value = float(raw)
-    return None if value == _INDETERMINATE else value
+    return None if value in indeterminate else value
 
 
-def parse_archive_csv(text: str) -> list[ParsedObs]:
+def parse_archive_csv(
+    text: str, indeterminate: frozenset[float] = _DEFAULT_INDETERMINATE
+) -> list[ParsedObs]:
     lines = text.splitlines()
     start = None
     for i, line in enumerate(lines):
@@ -49,20 +51,22 @@ def parse_archive_csv(text: str) -> list[ParsedObs]:
         out.append(
             ParsedObs(
                 ts_utc=_to_ms(date_str, time_str),
-                cloud_pct=_parse_value(raw_val),
+                cloud_pct=_parse_value(raw_val, indeterminate),
                 quality=quality.strip(),
             )
         )
     return out
 
 
-def parse_recent_json(payload: dict) -> list[ParsedObs]:
+def parse_recent_json(
+    payload: dict, indeterminate: frozenset[float] = _DEFAULT_INDETERMINATE
+) -> list[ParsedObs]:
     out: list[ParsedObs] = []
     for item in payload.get("value") or []:
         out.append(
             ParsedObs(
                 ts_utc=int(item["date"]),
-                cloud_pct=_parse_value(item.get("value")),
+                cloud_pct=_parse_value(item.get("value"), indeterminate),
                 quality=item.get("quality", ""),
             )
         )
