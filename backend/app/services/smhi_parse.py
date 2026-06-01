@@ -51,7 +51,7 @@ def parse_archive_csv(
         out.append(
             ParsedObs(
                 ts_utc=_to_ms(date_str, time_str),
-                cloud_pct=_parse_value(raw_val, indeterminate),
+                value=_parse_value(raw_val, indeterminate),
                 quality=quality.strip(),
             )
         )
@@ -66,7 +66,7 @@ def parse_recent_json(
         out.append(
             ParsedObs(
                 ts_utc=int(item["date"]),
-                cloud_pct=_parse_value(item.get("value"), indeterminate),
+                value=_parse_value(item.get("value"), indeterminate),
                 quality=item.get("quality", ""),
             )
         )

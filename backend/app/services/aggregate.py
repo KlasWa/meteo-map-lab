@@ -23,8 +23,8 @@ def aggregate(obs: list[ParsedObs], resolution: str) -> list[CloudPoint]:
         return [
             CloudPoint(
                 ts=o.ts_utc,
-                value=o.cloud_pct,
-                count=0 if o.cloud_pct is None else 1,
+                value=o.value,
+                count=0 if o.value is None else 1,
             )
             for o in obs
         ]
@@ -32,7 +32,7 @@ def aggregate(obs: list[ParsedObs], resolution: str) -> list[CloudPoint]:
     key_fn = _day_key if resolution == "daily" else _month_key
     buckets: dict[int, list[float | None]] = {}
     for o in obs:
-        buckets.setdefault(key_fn(o.ts_utc), []).append(o.cloud_pct)
+        buckets.setdefault(key_fn(o.ts_utc), []).append(o.value)
 
     points: list[CloudPoint] = []
     for key in sorted(buckets):

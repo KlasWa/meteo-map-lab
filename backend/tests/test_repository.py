@@ -50,7 +50,7 @@ def test_upsert_observations_dedupes_on_station_ts(repo):
     repo.upsert_observations(1, [ParsedObs(1000, 60.0, "G")])
     rows = repo.get_observations(1, 0, 2000)
     assert len(rows) == 1
-    assert rows[0].cloud_pct == 60.0
+    assert rows[0].value == 60.0
     assert rows[0].quality == "G"
 
 
@@ -77,3 +77,31 @@ def test_fetch_log_record_and_get(repo):
     repo.record_fetch(1, "recent", fetched_at=200, covered_from=10, covered_to=190)
     log2 = repo.get_fetch_log(1, "recent")
     assert log2.fetched_at == 200
+
+
+def test_param_isolates_stations_and_observations(repo):
+    # Same station id reporting two params, with different active status.
+    repo.upsert_stations(
+        [StationRaw(id=1, name="S16", lat=59.0, lon=18.0, active=True)], param=16
+    )
+    repo.upsert_stations(
+        [StationRaw(id=1, name="S29", lat=59.0, lon=18.0, active=True)], param=29
+    )
+    repo.upsert_observations(1, [ParsedObs(1000, 50.0, "G")], param=16)
+    repo.upsert_observations(1, [ParsedObs(1000, 7.0, "G")], param=29)
+
+    assert repo.station_count(param=16) == 1
+    assert repo.station_count(param=29) == 1
+    obs16 = repo.get_observations(1, 0, 2000, param=16)
+    obs29 = repo.get_observations(1, 0, 2000, param=29)
+    assert obs16[0].value == 50.0
+    assert obs29[0].value == 7.0
+
+
+def test_nearest_station_isolates_by_param(repo):
+    repo.upsert_stations(
+        [StationRaw(id=1, name="Only16", lat=59.0, lon=18.0, active=True)], param=16
+    )
+    # No param-29 station -> nearest_station(param=29) finds nothing.
+    assert repo.nearest_station(59.0, 18.0, max_km=150.0, param=29) is None
+    assert repo.nearest_station(59.0, 18.0, max_km=150.0, param=16).id == 1

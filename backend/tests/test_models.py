@@ -14,6 +14,7 @@ def test_tables_create_and_roundtrip():
     SQLModel.metadata.create_all(engine)
     with Session(engine) as s:
         s.add(Station(id=1, name="Test A", lat=59.0, lon=18.0, active=True))
-        s.add(Observation(station_id=1, ts_utc=1000, cloud_pct=50.0, quality="G"))
+        s.add(Observation(station_id=1, ts_utc=1000, value=50.0, quality="G"))
         s.commit()
-        assert s.get(Station, 1).name == "Test A"
+        # Composite PK is (param, id); param defaults to 16.
+        assert s.get(Station, (16, 1)).name == "Test A"

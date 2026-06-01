@@ -12,14 +12,14 @@ def test_parse_archive_csv():
     assert len(obs) == 5
     # First row: 2025-01-01 00:00:00 UTC -> 1735689600000 ms
     assert obs[0].ts_utc == 1735689600000
-    assert obs[0].cloud_pct == 100.0
+    assert obs[0].value == 100.0
     assert obs[0].quality == "G"
     # 113 indeterminate -> None
-    assert obs[2].cloud_pct is None
+    assert obs[2].value is None
     # empty value -> None
-    assert obs[3].cloud_pct is None
+    assert obs[3].value is None
     # zero is a real value, not None
-    assert obs[4].cloud_pct == 0.0
+    assert obs[4].value == 0.0
     assert obs[1].quality == "Y"
 
 
@@ -28,10 +28,10 @@ def test_parse_recent_json():
     obs = parse_recent_json(payload)
     assert len(obs) == 4
     assert obs[0].ts_utc == 1735689600000
-    assert obs[0].cloud_pct == 90.0
-    assert obs[1].cloud_pct is None  # 113
-    assert obs[2].cloud_pct is None  # empty
-    assert obs[3].cloud_pct == 20.0
+    assert obs[0].value == 90.0
+    assert obs[1].value is None  # 113
+    assert obs[2].value is None  # empty
+    assert obs[3].value == 20.0
 
 
 def test_parse_recent_json_handles_missing_value_key():
@@ -48,9 +48,9 @@ def test_parse_recent_json_octas_with_param29_indeterminate():
         ]
     }
     obs = parse_recent_json(payload, indeterminate=frozenset({9.0}))
-    assert obs[0].cloud_pct == 8.0
-    assert obs[1].cloud_pct is None  # 9 = obscured
-    assert obs[2].cloud_pct == 0.0  # zero is real
+    assert obs[0].value == 8.0
+    assert obs[1].value is None  # 9 = obscured
+    assert obs[2].value == 0.0  # zero is real
 
 
 def test_parse_archive_csv_respects_custom_indeterminate():
@@ -60,5 +60,5 @@ def test_parse_archive_csv_respects_custom_indeterminate():
         "2025-01-01;01:00:00;3;G;;\n"
     )
     obs = parse_archive_csv(text, indeterminate=frozenset({9.0}))
-    assert obs[0].cloud_pct is None
-    assert obs[1].cloud_pct == 3.0
+    assert obs[0].value is None
+    assert obs[1].value == 3.0

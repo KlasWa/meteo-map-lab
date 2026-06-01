@@ -6,10 +6,10 @@ from dataclasses import dataclass
 
 @dataclass(frozen=True)
 class ParsedObs:
-    """One parsed cloud-cover observation, storage-agnostic."""
+    """One parsed cloud observation, storage-agnostic."""
 
     ts_utc: int  # epoch milliseconds, UTC
-    cloud_pct: float | None  # 0-100, or None when indeterminate/missing
+    value: float | None  # native unit (percent or octas), None = indeterminate
     quality: str  # SMHI quality code: G / Y / R
 
 
