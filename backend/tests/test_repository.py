@@ -105,3 +105,10 @@ def test_nearest_station_isolates_by_param(repo):
     # No param-29 station -> nearest_station(param=29) finds nothing.
     assert repo.nearest_station(59.0, 18.0, max_km=150.0, param=29) is None
     assert repo.nearest_station(59.0, 18.0, max_km=150.0, param=16).id == 1
+
+
+def test_fetch_log_isolated_by_param(repo):
+    repo.record_fetch(1, "recent", fetched_at=100, covered_from=10, covered_to=90, param=16)
+    assert repo.get_fetch_log(1, "recent", param=29) is None
+    log = repo.get_fetch_log(1, "recent", param=16)
+    assert log.fetched_at == 100
