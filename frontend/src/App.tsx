@@ -10,6 +10,18 @@ import type { LatLon } from "./lib/url-state";
 
 const RESOLUTIONS: Resolution[] = ["hourly", "daily", "monthly"];
 
+// Time-period (date range) options. The backend serves ~13 months, so these
+// just filter the already-fetched points client-side (no refetch). `months:
+// null` means show everything cached.
+const PERIODS: { label: string; months: number | null }[] = [
+  { label: "1M", months: 1 },
+  { label: "3M", months: 3 },
+  { label: "6M", months: 6 },
+  { label: "1Y", months: 12 },
+  { label: "All", months: null },
+];
+const DAY_MS = 24 * 60 * 60 * 1000;
+
 // The two SMHI parameters shown together. Param 16 (percent) and 29 (octas)
 // have different units, so each maps to its own Y-axis in the chart.
 const PARAMS: {
@@ -41,7 +53,8 @@ export default function App() {
   // Loading starts true in that case since the fetch effect fires immediately
   // — handlers set loading for subsequent picks/clicks.
   const [selection, setSelection] = useState<LatLon | null>(readLatLonFromUrl);
-  const [resolution, setResolution] = useState<Resolution>("daily");
+  const [resolution, setResolution] = useState<Resolution>("monthly");
+  const [periodMonths, setPeriodMonths] = useState<number | null>(12);
   const [results, setResults] = useState<Record<number, ParamResult>>({});
   const [loading, setLoading] = useState(selection !== null);
 
@@ -114,9 +127,22 @@ export default function App() {
     setLoading(false);
   }, []);
 
+  // Filter the fetched points to the selected period. Window relative to the
+  // most recent data point (avoids an impure Date.now() in render and tracks
+  // the latest available data, which can lag "now"). Points are sorted ascending,
+  // so each series' last point is its max timestamp.
+  const latestTs = PARAMS.reduce((max, p) => {
+    const pts = results[p.id]?.data?.points;
+    const last = pts && pts.length ? pts[pts.length - 1].ts : 0;
+    return last > max ? last : max;
+  }, 0);
+  const cutoff =
+    periodMonths == null ? 0 : latestTs - periodMonths * 30 * DAY_MS;
   const series: CloudSeries[] = PARAMS.flatMap((p) => {
     const res = results[p.id];
-    if (!res?.data || res.data.points.length === 0) return [];
+    if (!res?.data) return [];
+    const points = res.data.points.filter((pt) => pt.ts >= cutoff);
+    if (points.length === 0) return [];
     return [
       {
         param: p.id,
@@ -124,7 +150,7 @@ export default function App() {
         unit: res.data.unit,
         axis: p.axis,
         color: p.color,
-        data: res.data,
+        data: { ...res.data, points },
       },
     ];
   });
@@ -199,17 +225,37 @@ export default function App() {
               </div>
             </div>
 
-            <div role="tablist" className="tabs tabs-border">
-              {RESOLUTIONS.map((r) => (
-                <button
-                  key={r}
-                  role="tab"
-                  className={`tab ${r === resolution ? "tab-active" : ""}`}
-                  onClick={() => changeResolution(r)}
-                >
-                  {r}
-                </button>
-              ))}
+            <div className="flex items-center justify-between gap-2">
+              <div role="tablist" className="tabs tabs-border">
+                {RESOLUTIONS.map((r) => (
+                  <button
+                    key={r}
+                    role="tab"
+                    className={`tab ${r === resolution ? "tab-active" : ""}`}
+                    onClick={() => changeResolution(r)}
+                  >
+                    {r}
+                  </button>
+                ))}
+              </div>
+
+              <select
+                className="select select-xs w-auto"
+                aria-label="Time period"
+                value={
+                  PERIODS.find((p) => p.months === periodMonths)?.label ?? "1Y"
+                }
+                onChange={(e) => {
+                  const p = PERIODS.find((x) => x.label === e.target.value);
+                  if (p) setPeriodMonths(p.months);
+                }}
+              >
+                {PERIODS.map((p) => (
+                  <option key={p.label} value={p.label}>
+                    {p.label}
+                  </option>
+                ))}
+              </select>
             </div>
 
             <div className="relative min-h-72 flex-1">
