@@ -23,9 +23,7 @@ def get_cloud_cover_service() -> CloudCoverService:
     """Lazily build a process-wide CloudCoverService. Overridable in tests via
     app.dependency_overrides."""
 
-    client = SMHIClient(
-        base_url=settings.smhi_base_url, param=settings.cloud_cover_param
-    )
+    client = SMHIClient(base_url=settings.smhi_base_url)
     return CloudCoverService(client, SqliteRepository(engine), settings)
 
 

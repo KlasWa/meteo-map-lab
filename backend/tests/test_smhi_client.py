@@ -10,7 +10,7 @@ FIXTURES = Path(__file__).parent / "fixtures"
 
 def _client_with(handler) -> SMHIClient:
     transport = httpx.MockTransport(handler)
-    return SMHIClient(base_url="https://example.test/api", param=16, transport=transport)
+    return SMHIClient(base_url="https://example.test/api", transport=transport)
 
 
 def test_fetch_station_list_maps_fields():
@@ -30,6 +30,14 @@ def test_fetch_station_list_maps_fields():
     assert s.active is True
 
 
+def test_fetch_station_list_uses_param():
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.url.path == "/api/version/1.0/parameter/29.json"
+        return httpx.Response(200, content='{"station": []}')
+
+    assert _client_with(handler).fetch_station_list(param=29) == []
+
+
 def test_fetch_recent_returns_json():
     payload = json.loads((FIXTURES / "recent_sample.json").read_text())
 
@@ -40,6 +48,14 @@ def test_fetch_recent_returns_json():
 
     data = _client_with(handler).fetch_recent(92410)
     assert data["value"][0]["value"] == "90"
+
+
+def test_fetch_recent_uses_param():
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert "/parameter/29/" in request.url.path
+        return httpx.Response(200, json={"value": []})
+
+    _client_with(handler).fetch_recent(92410, param=29)
 
 
 def test_fetch_archive_returns_text():
