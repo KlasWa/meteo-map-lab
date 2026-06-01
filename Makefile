@@ -1,7 +1,7 @@
 COMPOSE = docker compose -f .devcontainer/docker-compose.yml
 COMPOSE_DEBUG = docker compose -f .devcontainer/docker-compose.yml -f .devcontainer/docker-compose.debug.yml
 
-.PHONY: up down rebuild debug test gen-schema gen-types gen-api
+.PHONY: up down rebuild debug reset-db test gen-schema gen-types gen-api
 
 up:
 	$(COMPOSE) up --build
@@ -21,6 +21,15 @@ debug:
 rebuild:
 	$(COMPOSE) down -v
 	$(COMPOSE) up --build
+
+# Delete the local SQLite cache and restart the backend so init_db() recreates
+# the schema from the current models. Use after a backend model change: there is
+# no migration tool, and SQLModel.create_all() never alters existing tables, so a
+# stale on-disk schema otherwise causes "no such column" errors. The DB is a
+# regenerable cache (re-fetched from SMHI on demand), so dropping it is safe.
+reset-db:
+	rm -f backend/elvy_map.db
+	$(COMPOSE) restart backend
 
 # Regenerate the OpenAPI schema (backend toolchain).
 gen-schema:
