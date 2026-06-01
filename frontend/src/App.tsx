@@ -190,8 +190,10 @@ export default function App() {
   );
 
   return (
-    <div className="flex h-screen">
-      <div className="relative flex-1">
+    <div className="flex h-screen flex-col lg:flex-row">
+      {/* Map: full width and ~30vh tall on mobile (on top), fills the left
+          column on large screens. */}
+      <div className="relative h-[30vh] w-full lg:h-auto lg:w-auto lg:flex-1">
         <MapView
           onSelect={handleSelect}
           onMapClick={handleMapClick}
@@ -199,7 +201,9 @@ export default function App() {
         />
       </div>
 
-      <aside className="flex w-96 flex-col gap-4 overflow-y-auto border-l border-base-300 bg-base-200 p-4">
+      {/* Aside: below the map on mobile, on the right (sized to fit the chart)
+          on large screens. Scrolls internally so it never exceeds the screen. */}
+      <aside className="flex w-full flex-1 flex-col gap-4 overflow-y-auto border-t border-base-300 bg-base-200 p-4 lg:w-[640px] lg:max-w-full lg:flex-none lg:border-l lg:border-t-0">
         {!selection ? (
           <div className="rounded-box border border-dashed border-base-300 p-4 text-sm opacity-70">
             Search an address or click anywhere on the map to compare total and
@@ -312,7 +316,7 @@ export default function App() {
               </select>
             </div>
 
-            <div className="relative min-h-72 flex-1">
+            <div className="relative mx-auto aspect-[2/1] w-full max-w-[600px]">
               {loading && (
                 <div className="absolute inset-0 flex items-center justify-center">
                   <span className="loading loading-spinner loading-lg" />
