@@ -1,5 +1,18 @@
 @import "tailwindcss";
-@plugin "daisyui";
+@plugin "daisyui" {
+  themes: silk --default;
+}
+
+/* Bauhaus-flat geometry on top of silk's palette: square corners, no 3D
+   depth or grain — a simpler, grid-like look (closer to usgraphics.com). */
+:root,
+[data-theme="silk"] {
+  --radius-box: 0rem;
+  --radius-field: 0rem;
+  --radius-selector: 0.25rem;
+  --depth: 0;
+  --noise: 0;
+}
 
 /* Keep #root filling the viewport so the map layout can use flex/height. */
 html,
