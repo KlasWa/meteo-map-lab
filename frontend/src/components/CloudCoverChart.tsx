@@ -23,6 +23,10 @@ ChartJS.register(
   Legend,
 );
 
+// Match the app's grotesk UI font so chart labels stay consistent.
+ChartJS.defaults.font.family =
+  '"Space Grotesk", ui-sans-serif, system-ui, sans-serif';
+
 export type CloudSeries = {
   param: number;
   label: string;

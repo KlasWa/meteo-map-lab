@@ -21,13 +21,13 @@ const PARAMS: {
   {
     id: 16,
     label: "Total cloud cover",
-    color: "oklch(60% 0.13 250)",
+    color: "oklch(25% 0 0)",
     axis: "yPercent",
   },
   {
     id: 29,
     label: "Low cloud amount",
-    color: "oklch(70% 0.17 50)",
+    color: "oklch(57% 0.21 27)",
     axis: "yOctas",
   },
 ];
@@ -142,13 +142,13 @@ export default function App() {
 
       <aside className="flex w-96 flex-col gap-4 overflow-y-auto border-l border-base-300 bg-base-200 p-4">
         {!selection ? (
-          <div className="rounded-box border border-dashed border-white p-4 text-sm opacity-70">
+          <div className="rounded-box border border-dashed border-base-300 p-4 text-sm opacity-70">
             Search an address or click anywhere on the map to compare total and
             low cloud cover for the past year.
           </div>
         ) : (
           <>
-            <div className="card card-compact bg-base-100 shadow-sm">
+            <div className="card card-compact border border-base-300 bg-base-100">
               <div className="card-body gap-2">
                 <div className="flex items-center justify-between gap-2">
                   <h2 className="card-title text-base">Selected location</h2>
@@ -199,7 +199,7 @@ export default function App() {
               </div>
             </div>
 
-            <div role="tablist" className="tabs tabs-box">
+            <div role="tablist" className="tabs tabs-border">
               {RESOLUTIONS.map((r) => (
                 <button
                   key={r}
@@ -232,7 +232,7 @@ export default function App() {
           </>
         )}
 
-        <div className="mt-auto flex items-center justify-end gap-1.5 text-xs opacity-60">
+        <div className="justify-end flex items-center gap-1.5 text-xs opacity-60 mt-auto">
           <span
             className={`inline-block h-1.5 w-1.5 rounded-full ${
               backendOk === null
