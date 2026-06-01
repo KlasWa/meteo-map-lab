@@ -10,17 +10,36 @@ import type { LatLon } from "./lib/url-state";
 
 const RESOLUTIONS: Resolution[] = ["hourly", "daily", "monthly"];
 
-// Time-period (date range) options. The backend serves ~13 months, so these
-// just filter the already-fetched points client-side (no refetch). `months:
-// null` means show everything cached.
-const PERIODS: { label: string; months: number | null }[] = [
-  { label: "1M", months: 1 },
-  { label: "3M", months: 3 },
-  { label: "6M", months: 6 },
-  { label: "1Y", months: 12 },
-  { label: "All", months: null },
-];
 const DAY_MS = 24 * 60 * 60 * 1000;
+
+// Time-period (date range) options per resolution — only ranges that make sense
+// for the bucket size are offered. The backend serves ~13 months, so these just
+// filter the already-fetched points client-side (no refetch). `days: null` means
+// show everything cached.
+type Period = { label: string; days: number | null };
+const PERIODS_BY_RESOLUTION: Record<Resolution, Period[]> = {
+  hourly: [
+    { label: "1D", days: 1 },
+    { label: "1W", days: 7 },
+    { label: "1M", days: 30 },
+  ],
+  daily: [
+    { label: "1M", days: 30 },
+    { label: "3M", days: 90 },
+    { label: "6M", days: 180 },
+    { label: "1Y", days: 365 },
+  ],
+  monthly: [
+    { label: "6M", days: 180 },
+    { label: "1Y", days: 365 },
+    { label: "All", days: null },
+  ],
+};
+const DEFAULT_PERIOD: Record<Resolution, string> = {
+  hourly: "1W",
+  daily: "3M",
+  monthly: "1Y",
+};
 
 // Initial great-circle bearing (compass degrees, 0 = north, clockwise) from
 // point 1 to point 2. Used to rotate the "direction to station" arrow.
@@ -73,7 +92,9 @@ export default function App() {
   // — handlers set loading for subsequent picks/clicks.
   const [selection, setSelection] = useState<LatLon | null>(readLatLonFromUrl);
   const [resolution, setResolution] = useState<Resolution>("monthly");
-  const [periodMonths, setPeriodMonths] = useState<number | null>(12);
+  const [periodLabel, setPeriodLabel] = useState<string>(
+    DEFAULT_PERIOD.monthly,
+  );
   const [results, setResults] = useState<Record<number, ParamResult>>({});
   const [loading, setLoading] = useState(selection !== null);
 
@@ -136,6 +157,7 @@ export default function App() {
       setLoading(true);
       setResults({});
       setResolution(r);
+      setPeriodLabel(DEFAULT_PERIOD[r]);
     },
     [resolution, selection],
   );
@@ -165,8 +187,11 @@ export default function App() {
     const last = pts && pts.length ? pts[pts.length - 1].ts : 0;
     return last > max ? last : max;
   }, 0);
-  const cutoff =
-    periodMonths == null ? 0 : latestTs - periodMonths * 30 * DAY_MS;
+  const periodOptions = PERIODS_BY_RESOLUTION[resolution];
+  const selectedDays = (
+    periodOptions.find((p) => p.label === periodLabel) ?? periodOptions[0]
+  ).days;
+  const cutoff = selectedDays == null ? 0 : latestTs - selectedDays * DAY_MS;
   const series: CloudSeries[] = PARAMS.flatMap((p) => {
     const res = results[p.id];
     if (!res?.data) return [];
@@ -300,15 +325,10 @@ export default function App() {
               <select
                 className="select select-xs w-auto"
                 aria-label="Time period"
-                value={
-                  PERIODS.find((p) => p.months === periodMonths)?.label ?? "1Y"
-                }
-                onChange={(e) => {
-                  const p = PERIODS.find((x) => x.label === e.target.value);
-                  if (p) setPeriodMonths(p.months);
-                }}
+                value={periodLabel}
+                onChange={(e) => setPeriodLabel(e.target.value)}
               >
-                {PERIODS.map((p) => (
+                {periodOptions.map((p) => (
                   <option key={p.label} value={p.label}>
                     {p.label}
                   </option>
