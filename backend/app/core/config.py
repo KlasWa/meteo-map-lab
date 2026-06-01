@@ -7,7 +7,8 @@ class Settings(BaseSettings):
     cors_origins: list[str] = ["http://localhost:5173"]
     database_url: str = "sqlite:///./elvy_map.db"
     smhi_base_url: str = "https://opendata-download-metobs.smhi.se/api"
-    cloud_cover_param: int = 16  # SMHI "Total molnmängd", percent
+    cloud_cover_param: int = 16  # default parameter for the endpoint
+    cloud_cover_params: list[int] = [16, 29]  # supported parameters
     history_months: int = 13  # how far back to retain/serve
     recent_ttl_seconds: int = 3600  # re-fetch latest-months window after this
     station_list_ttl_days: int = 30  # refresh station list after this
