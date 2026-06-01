@@ -1,4 +1,4 @@
-"""Orchestrates SMHI fetching, caching, and aggregation for cloud cover."""
+"""Orchestrates SMHI fetching, caching, and aggregation for cloud parameters."""
 
 import time
 from threading import Lock
@@ -9,6 +9,7 @@ from app.repositories.base import CacheRepository
 from app.schemas.cloud_cover import CloudCoverResponse, StationInfo
 from app.services.aggregate import aggregate
 from app.services.geo import haversine_km
+from app.services.parameters import PARAMETERS
 from app.services.smhi import SMHIClient
 from app.services.smhi_parse import parse_archive_csv, parse_recent_json
 
@@ -48,92 +49,102 @@ class CloudCoverService:
         self.station_list_ttl_ms = settings.station_list_ttl_days * 24 * 3600 * 1000
         self.history_ms = settings.history_months * _MONTH_MS
         self.nearest_max_km = settings.nearest_max_km
-        self._locks: dict[int, Lock] = {}
+        self._locks: dict[tuple[int, int], Lock] = {}
         self._locks_guard = Lock()
 
     def _now_ms(self) -> int:
         return int(time.time() * 1000)
 
-    def _lock_for(self, station_id: int) -> Lock:
+    def _lock_for(self, param: int, station_id: int) -> Lock:
+        key = (param, station_id)
         with self._locks_guard:
-            lock = self._locks.get(station_id)
+            lock = self._locks.get(key)
             if lock is None:
                 lock = Lock()
-                self._locks[station_id] = lock
+                self._locks[key] = lock
             return lock
 
-    def ensure_station_list(self, now_ms: int) -> None:
-        log = self.repo.get_fetch_log(_STATION_LIST_ID, STATION_LIST)
+    def ensure_station_list(self, param: int, now_ms: int) -> None:
+        log = self.repo.get_fetch_log(_STATION_LIST_ID, STATION_LIST, param=param)
         fresh = log is not None and now_ms - log.fetched_at <= self.station_list_ttl_ms
         if fresh:
             return
         try:
-            stations = self.client.fetch_station_list()
+            stations = self.client.fetch_station_list(param=param)
         except httpx.HTTPError as exc:
-            if self.repo.station_count() == 0:
+            if self.repo.station_count(param=param) == 0:
                 raise SMHIUnavailable(str(exc)) from exc
             return  # keep using the existing (stale) list
-        self.repo.upsert_stations(stations)
-        self.repo.record_fetch(_STATION_LIST_ID, STATION_LIST, now_ms, None, None)
+        self.repo.upsert_stations(stations, param=param)
+        self.repo.record_fetch(_STATION_LIST_ID, STATION_LIST, now_ms, None, None, param=param)
 
-    def ensure_cached(self, station_id: int, now_ms: int) -> None:
+    def ensure_cached(self, station_id: int, now_ms: int, param: int = 16) -> None:
+        indeterminate = PARAMETERS[param].indeterminate
+
         # Recent window: refresh when missing or older than TTL.
-        recent_log = self.repo.get_fetch_log(station_id, RECENT)
+        recent_log = self.repo.get_fetch_log(station_id, RECENT, param=param)
         if recent_log is None or now_ms - recent_log.fetched_at > self.recent_ttl_ms:
             try:
-                payload = self.client.fetch_recent(station_id)
+                payload = self.client.fetch_recent(station_id, param=param)
             except httpx.HTTPStatusError as exc:
                 if exc.response.status_code != 404:
                     raise SMHIUnavailable(str(exc)) from exc
                 # No latest-months file for this station (it exists but has no
                 # recent data). Not an outage: record the attempt so we honor
                 # the TTL, then fall through to the archive.
-                self.repo.record_fetch(station_id, RECENT, now_ms, None, None)
+                self.repo.record_fetch(station_id, RECENT, now_ms, None, None, param=param)
             except httpx.HTTPError as exc:
                 raise SMHIUnavailable(str(exc)) from exc
             else:
-                obs = parse_recent_json(payload)
-                self.repo.upsert_observations(station_id, obs)
-                self.repo.record_fetch(station_id, RECENT, now_ms, _min_ts(obs), _max_ts(obs))
+                obs = parse_recent_json(payload, indeterminate)
+                self.repo.upsert_observations(station_id, obs, param=param)
+                self.repo.record_fetch(
+                    station_id, RECENT, now_ms, _min_ts(obs), _max_ts(obs), param=param
+                )
 
         # Archive: fetch once, then never again (immutable).
-        archive_log = self.repo.get_fetch_log(station_id, ARCHIVE)
+        archive_log = self.repo.get_fetch_log(station_id, ARCHIVE, param=param)
         if archive_log is None:
             try:
-                text = self.client.fetch_archive(station_id)
+                text = self.client.fetch_archive(station_id, param=param)
             except httpx.HTTPError as exc:
                 raise SMHIUnavailable(str(exc)) from exc
             cutoff = now_ms - self.history_ms
-            obs = [o for o in parse_archive_csv(text) if o.ts_utc >= cutoff]
-            self.repo.upsert_observations(station_id, obs)
-            self.repo.record_fetch(station_id, ARCHIVE, now_ms, _min_ts(obs), _max_ts(obs))
+            obs = [o for o in parse_archive_csv(text, indeterminate) if o.ts_utc >= cutoff]
+            self.repo.upsert_observations(station_id, obs, param=param)
+            self.repo.record_fetch(
+                station_id, ARCHIVE, now_ms, _min_ts(obs), _max_ts(obs), param=param
+            )
 
     def get_cloud_cover(
         self,
         lat: float,
         lon: float,
         resolution: str,
+        param: int = 16,
         now_ms: int | None = None,
     ) -> CloudCoverResponse:
         now_ms = now_ms if now_ms is not None else self._now_ms()
-        self.ensure_station_list(now_ms)
+        self.ensure_station_list(param, now_ms)
 
-        station = self.repo.nearest_station(lat, lon, self.nearest_max_km)
+        station = self.repo.nearest_station(lat, lon, self.nearest_max_km, param=param)
         if station is None:
             raise NoStationFound(
                 f"No SMHI station within {self.nearest_max_km} km of ({lat}, {lon})."
             )
 
         stale = False
-        with self._lock_for(station.id):
+        with self._lock_for(param, station.id):
             try:
-                self.ensure_cached(station.id, now_ms)
+                self.ensure_cached(station.id, now_ms, param=param)
             except SMHIUnavailable:
                 stale = True
 
         # Serve the same window we retain (history_months), so the endpoint
         # exposes everything the cache holds for the station.
-        obs = self.repo.get_observations(station.id, now_ms - self.history_ms, now_ms)
+        obs = self.repo.get_observations(
+            station.id, now_ms - self.history_ms, now_ms, param=param
+        )
         if not obs and stale:
             raise SMHIUnavailable("SMHI is unavailable and no cached data exists for this station.")
 
@@ -147,7 +158,9 @@ class CloudCoverService:
                 lon=station.lon,
                 distance_km=round(distance, 2),
             ),
+            param=param,
             resolution=resolution,
+            unit=PARAMETERS[param].unit,
             stale=stale,
             points=points,
         )

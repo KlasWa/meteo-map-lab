@@ -18,15 +18,15 @@ class FakeClient:
     def __init__(self):
         self.fail_recent = False
 
-    def fetch_station_list(self):
+    def fetch_station_list(self, param=16):
         return [StationRaw(id=1, name="Near", lat=59.0, lon=18.0, active=True)]
 
-    def fetch_recent(self, station_id):
+    def fetch_recent(self, station_id, param=16):
         if self.fail_recent:
             raise httpx.ConnectError("boom")
         return {"value": [{"date": NOW - 3600_000, "value": "40", "quality": "G"}]}
 
-    def fetch_archive(self, station_id):
+    def fetch_archive(self, station_id, param=16):
         return "Datum;Tid (UTC);Total molnmängd;Kvalitet;;\n2025-01-01;00:00:00;80;G;;\n"
 
 

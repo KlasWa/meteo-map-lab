@@ -17,8 +17,9 @@ class StationInfo(BaseModel):
 
 class CloudCoverResponse(BaseModel):
     station: StationInfo
+    param: int
     resolution: str
-    unit: str = "percent"
+    unit: str
     stale: bool = False
     attribution: str = "Data: SMHI (CC BY 4.0)"
     points: list[CloudPoint]

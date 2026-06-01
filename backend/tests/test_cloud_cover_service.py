@@ -20,11 +20,11 @@ class FakeClient:
         self.fail_recent = False
         self.recent_404 = False
 
-    def fetch_station_list(self):
+    def fetch_station_list(self, param=16):
         self.station_calls += 1
         return [StationRaw(id=1, name="Near", lat=59.0, lon=18.0, active=True)]
 
-    def fetch_recent(self, station_id):
+    def fetch_recent(self, station_id, param=16):
         self.recent_calls += 1
         if self.recent_404:
             req = httpx.Request("GET", "http://smhi/latest-months")
@@ -33,9 +33,10 @@ class FakeClient:
             )
         if self.fail_recent:
             raise httpx.ConnectError("boom")
-        return {"value": [{"date": NOW - 3600_000, "value": "40", "quality": "G"}]}
+        val = "5" if param == 29 else "40"
+        return {"value": [{"date": NOW - 3600_000, "value": val, "quality": "G"}]}
 
-    def fetch_archive(self, station_id):
+    def fetch_archive(self, station_id, param=16):
         self.archive_calls += 1
         # one point inside 13 months, one ancient point that must be dropped
         return (
@@ -156,3 +157,14 @@ def test_get_cloud_cover_stale_when_refresh_fails_but_cache_exists(repo):
     )
     assert resp.stale is True
     assert len(resp.points) >= 1
+
+
+def test_get_cloud_cover_param29_uses_octas_unit(repo):
+    client = FakeClient()
+    svc = _service(repo, client)
+    resp = svc.get_cloud_cover(59.05, 18.05, "hourly", param=29, now_ms=NOW)
+    assert resp.param == 29
+    assert resp.unit == "octas"
+    assert resp.station.id == 1
+    # The recent octas value (5) is served as-is, not converted.
+    assert any(p.value == 5.0 for p in resp.points)
