@@ -95,3 +95,31 @@ def test_cloud_cover_503_when_unavailable_and_cold():
     client = _client_with(svc)
     r = client.get("/api/cloud-cover", params={"lat": 59.05, "lon": 18.05})
     assert r.status_code == 503
+
+
+def test_cloud_cover_param29_octas():
+    svc = _make_service(FakeClient())
+    client = _client_with(svc)
+    r = client.get(
+        "/api/cloud-cover",
+        params={"lat": 59.05, "lon": 18.05, "resolution": "daily", "param": 29},
+    )
+    assert r.status_code == 200
+    body = r.json()
+    assert body["param"] == 29
+    assert body["unit"] == "octas"
+
+
+def test_cloud_cover_default_param_is_16():
+    svc = _make_service(FakeClient())
+    client = _client_with(svc)
+    r = client.get("/api/cloud-cover", params={"lat": 59.05, "lon": 18.05})
+    assert r.json()["param"] == 16
+    assert r.json()["unit"] == "percent"
+
+
+def test_cloud_cover_invalid_param_is_422():
+    svc = _make_service(FakeClient())
+    client = _client_with(svc)
+    r = client.get("/api/cloud-cover", params={"lat": 59.0, "lon": 18.0, "param": 99})
+    assert r.status_code == 422
