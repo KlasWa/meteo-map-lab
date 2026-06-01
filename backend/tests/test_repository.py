@@ -107,6 +107,18 @@ def test_nearest_station_isolates_by_param(repo):
     assert repo.nearest_station(59.0, 18.0, max_km=150.0, param=16).id == 1
 
 
+def test_record_fetch_upserts_without_duplicate(repo):
+    # record_fetch must upsert on (param, station_id, kind): recording the same
+    # key twice updates in place rather than inserting a duplicate row (which a
+    # select-then-insert would do under concurrency -> UNIQUE constraint failed).
+    repo.record_fetch(0, "station_list", fetched_at=100, covered_from=None, covered_to=None)
+    repo.record_fetch(0, "station_list", fetched_at=200, covered_from=10, covered_to=90)
+    log = repo.get_fetch_log(0, "station_list")
+    assert log.fetched_at == 200
+    assert log.covered_from == 10
+    assert log.covered_to == 90
+
+
 def test_fetch_log_isolated_by_param(repo):
     repo.record_fetch(1, "recent", fetched_at=100, covered_from=10, covered_to=90, param=16)
     assert repo.get_fetch_log(1, "recent", param=29) is None

@@ -140,28 +140,26 @@ class SqliteRepository(CacheRepository):
         covered_to: int | None,
         param: int = 16,
     ) -> None:
+        # Atomic upsert on the (param, station_id, kind) unique constraint.
+        # A select-then-insert here races under concurrent same-param requests
+        # (the frontend fetches params in parallel; dev StrictMode double-fires),
+        # producing "UNIQUE constraint failed". ON CONFLICT DO UPDATE is safe.
+        stmt = sqlite_insert(FetchLog).values(
+            param=param,
+            station_id=station_id,
+            kind=kind,
+            fetched_at=fetched_at,
+            covered_from=covered_from,
+            covered_to=covered_to,
+        )
+        stmt = stmt.on_conflict_do_update(
+            index_elements=["param", "station_id", "kind"],
+            set_={
+                "fetched_at": stmt.excluded.fetched_at,
+                "covered_from": stmt.excluded.covered_from,
+                "covered_to": stmt.excluded.covered_to,
+            },
+        )
         with Session(self._engine) as s:
-            existing = s.exec(
-                select(FetchLog).where(
-                    FetchLog.param == param,
-                    FetchLog.station_id == station_id,
-                    FetchLog.kind == kind,
-                )
-            ).first()
-            if existing:
-                existing.fetched_at = fetched_at
-                existing.covered_from = covered_from
-                existing.covered_to = covered_to
-                s.add(existing)
-            else:
-                s.add(
-                    FetchLog(
-                        param=param,
-                        station_id=station_id,
-                        kind=kind,
-                        fetched_at=fetched_at,
-                        covered_from=covered_from,
-                        covered_to=covered_to,
-                    )
-                )
+            s.execute(stmt)
             s.commit()
