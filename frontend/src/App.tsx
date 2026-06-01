@@ -18,8 +18,18 @@ const PARAMS: {
   color: string;
   axis: "yPercent" | "yOctas";
 }[] = [
-  { id: 16, label: "Total cloud cover", color: "oklch(60% 0.13 250)", axis: "yPercent" },
-  { id: 29, label: "Low cloud amount", color: "oklch(70% 0.17 50)", axis: "yOctas" },
+  {
+    id: 16,
+    label: "Total cloud cover",
+    color: "oklch(60% 0.13 250)",
+    axis: "yPercent",
+  },
+  {
+    id: 29,
+    label: "Low cloud amount",
+    color: "oklch(70% 0.17 50)",
+    axis: "yOctas",
+  },
 ];
 
 type ParamResult = { data: CloudCover | null; error: string | null };
@@ -125,24 +135,24 @@ export default function App() {
       </div>
 
       <aside className="flex w-96 flex-col gap-4 overflow-y-auto border-l border-base-300 bg-base-200 p-4">
-        <header className="flex items-center justify-between">
-          <h1 className="text-xl font-bold">elvy-map</h1>
+        <div className="flex items-center gap-1.5 text-xs opacity-60">
           <span
-            className={`badge badge-sm ${
+            className={`inline-block h-1.5 w-1.5 rounded-full ${
               backendOk === null
-                ? "badge-ghost"
+                ? "bg-base-content/40"
                 : backendOk
-                  ? "badge-success"
-                  : "badge-error"
+                  ? "bg-success"
+                  : "bg-error"
             }`}
-          >
+          />
+          <span>
             {backendOk === null
               ? "checking…"
               : backendOk
-                ? "backend ok"
-                : "backend down"}
+                ? "api operational"
+                : "api unavailable"}
           </span>
-        </header>
+        </div>
 
         {!selection ? (
           <div className="rounded-box border border-dashed border-base-300 p-4 text-sm opacity-70">
@@ -161,7 +171,10 @@ export default function App() {
                   {PARAMS.map((p) => {
                     const res = results[p.id];
                     return (
-                      <div key={p.id} className="flex items-center gap-2 text-xs">
+                      <div
+                        key={p.id}
+                        className="flex items-center gap-2 text-xs"
+                      >
                         <span
                           className="inline-block h-2 w-2 shrink-0 rounded-full"
                           style={{ backgroundColor: p.color }}
@@ -218,9 +231,7 @@ export default function App() {
               )}
             </div>
 
-            {attribution && (
-              <p className="text-xs opacity-50">{attribution}</p>
-            )}
+            {attribution && <p className="text-xs opacity-50">{attribution}</p>}
           </>
         )}
       </aside>
