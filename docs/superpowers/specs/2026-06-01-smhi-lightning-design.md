@@ -59,9 +59,16 @@ tables, separate from the cloud tables.
   - `count: int` — strikes ingested for that day (0 for empty days)
 
 A day is **final** (fetch once, never again) when its date is strictly before
-`today - 1 day` (UTC). The current and previous UTC day are **non-final** and
-re-fetched when their ledger row is older than `lightning_recent_ttl_seconds`
-(late-arriving data / today still growing).
+`today - 1 day` (UTC). The current and previous UTC day are **non-final**.
+
+Non-final days are cached exactly like final days (their strikes are stored and
+a `LightningDay` ledger row is written), so within the TTL they are served from
+cache with no fetch. The only difference: a non-final day is **re-fetched** when
+its ledger row is older than `lightning_recent_ttl_seconds` (today's file is
+still growing / late-arriving strikes). A re-fetch is an **idempotent append** —
+`upsert_strikes` uses `ON CONFLICT DO NOTHING` on `(ts_utc, lat, lon)`, so newly
+arrived strikes are added while already-cached ones are no-ops (no duplicates,
+no double-counting) — and the ledger's `count` + `fetched_at` are updated.
 
 `app/dto.py` gains `StrikeRaw` (storage-agnostic): `ts_utc, lat, lon,
 peak_current, cloud_indicator`.
