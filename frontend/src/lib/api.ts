@@ -38,3 +38,21 @@ export async function getCloudCover(
   }
   throw new Error(error ? JSON.stringify(error) : "cloud-cover request failed");
 }
+
+export type Lightning =
+  paths["/api/lightning"]["get"]["responses"]["200"]["content"]["application/json"];
+
+export async function getLightning(
+  lat: number,
+  lon: number,
+  resolution: Resolution,
+): Promise<Lightning> {
+  const { data, error, response } = await client.GET("/api/lightning", {
+    params: { query: { lat, lon, resolution } },
+  });
+  if (data) return data;
+  if (response.status === 503) {
+    throw new Error("SMHI lightning is unavailable and no data is cached yet.");
+  }
+  throw new Error(error ? JSON.stringify(error) : "lightning request failed");
+}

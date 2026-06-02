@@ -12,6 +12,7 @@ import {
 import { Line } from "react-chartjs-2";
 
 import type { CloudCover, Resolution } from "../lib/api";
+import { formatLabel } from "../lib/chart-format";
 
 ChartJS.register(
   CategoryScale,
@@ -40,30 +41,6 @@ type Props = {
   series: CloudSeries[];
   resolution: Resolution;
 };
-
-function formatLabel(tsMs: number, resolution: Resolution): string {
-  const d = new Date(tsMs);
-  if (resolution === "monthly") {
-    return d.toLocaleDateString(undefined, {
-      year: "numeric",
-      month: "short",
-      timeZone: "UTC",
-    });
-  }
-  if (resolution === "daily") {
-    return d.toLocaleDateString(undefined, {
-      month: "short",
-      day: "numeric",
-      timeZone: "UTC",
-    });
-  }
-  return d.toLocaleString(undefined, {
-    month: "short",
-    day: "numeric",
-    hour: "2-digit",
-    timeZone: "UTC",
-  });
-}
 
 export function CloudCoverChart({ series, resolution }: Props) {
   // The two series may come from different stations with different timestamps,

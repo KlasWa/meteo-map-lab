@@ -38,6 +38,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/lightning": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Lightning */
+        get: operations["lightning_api_lightning_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -89,6 +106,45 @@ export interface components {
         HealthResponse: {
             /** Status */
             status: string;
+        };
+        /** LightningCenter */
+        LightningCenter: {
+            /** Lat */
+            lat: number;
+            /** Lon */
+            lon: number;
+        };
+        /** LightningPoint */
+        LightningPoint: {
+            /** Ts */
+            ts: number;
+            /** Count */
+            count: number;
+        };
+        /** LightningResponse */
+        LightningResponse: {
+            center: components["schemas"]["LightningCenter"];
+            /** Radius Km */
+            radius_km: number;
+            /** Resolution */
+            resolution: string;
+            /**
+             * Unit
+             * @default strikes
+             */
+            unit: string;
+            /**
+             * Stale
+             * @default false
+             */
+            stale: boolean;
+            /**
+             * Attribution
+             * @default Data: SMHI (CC BY 4.0)
+             */
+            attribution: string;
+            /** Points */
+            points: components["schemas"]["LightningPoint"][];
         };
         /** StationInfo */
         StationInfo: {
@@ -166,6 +222,39 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["CloudCoverResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    lightning_api_lightning_get: {
+        parameters: {
+            query: {
+                lat: number;
+                lon: number;
+                resolution?: "hourly" | "daily" | "monthly";
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LightningResponse"];
                 };
             };
             /** @description Validation Error */

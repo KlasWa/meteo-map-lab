@@ -100,6 +100,72 @@
           }
         }
       }
+    },
+    "/api/lightning": {
+      "get": {
+        "tags": [
+          "lightning"
+        ],
+        "summary": "Lightning",
+        "operationId": "lightning_api_lightning_get",
+        "parameters": [
+          {
+            "name": "lat",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "number",
+              "title": "Lat"
+            }
+          },
+          {
+            "name": "lon",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "number",
+              "title": "Lon"
+            }
+          },
+          {
+            "name": "resolution",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "hourly",
+                "daily",
+                "monthly"
+              ],
+              "type": "string",
+              "default": "daily",
+              "title": "Resolution"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LightningResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -213,6 +279,87 @@
           "status"
         ],
         "title": "HealthResponse"
+      },
+      "LightningCenter": {
+        "properties": {
+          "lat": {
+            "type": "number",
+            "title": "Lat"
+          },
+          "lon": {
+            "type": "number",
+            "title": "Lon"
+          }
+        },
+        "type": "object",
+        "required": [
+          "lat",
+          "lon"
+        ],
+        "title": "LightningCenter"
+      },
+      "LightningPoint": {
+        "properties": {
+          "ts": {
+            "type": "integer",
+            "title": "Ts"
+          },
+          "count": {
+            "type": "integer",
+            "title": "Count"
+          }
+        },
+        "type": "object",
+        "required": [
+          "ts",
+          "count"
+        ],
+        "title": "LightningPoint"
+      },
+      "LightningResponse": {
+        "properties": {
+          "center": {
+            "$ref": "#/components/schemas/LightningCenter"
+          },
+          "radius_km": {
+            "type": "number",
+            "title": "Radius Km"
+          },
+          "resolution": {
+            "type": "string",
+            "title": "Resolution"
+          },
+          "unit": {
+            "type": "string",
+            "title": "Unit",
+            "default": "strikes"
+          },
+          "stale": {
+            "type": "boolean",
+            "title": "Stale",
+            "default": false
+          },
+          "attribution": {
+            "type": "string",
+            "title": "Attribution",
+            "default": "Data: SMHI (CC BY 4.0)"
+          },
+          "points": {
+            "items": {
+              "$ref": "#/components/schemas/LightningPoint"
+            },
+            "type": "array",
+            "title": "Points"
+          }
+        },
+        "type": "object",
+        "required": [
+          "center",
+          "radius_km",
+          "resolution",
+          "points"
+        ],
+        "title": "LightningResponse"
       },
       "StationInfo": {
         "properties": {
