@@ -4,8 +4,21 @@ import { CloudCoverChart } from "./components/CloudCoverChart";
 import type { CloudSeries } from "./components/CloudCoverChart";
 import { LightningChart } from "./components/LightningChart";
 import { MapView } from "./components/MapView";
-import { getCloudCover, getCombinedCloud, getHealth, getLightning, purgeCache } from "./lib/api";
-import type { CloudCover, CloudParam, CombinedCloud, Lightning, Resolution } from "./lib/api";
+import { RiskPanel } from "./components/RiskPanel";
+import {
+  getCloudCover,
+  getCombinedCloud,
+  getHealth,
+  getLightning,
+  purgeCache,
+} from "./lib/api";
+import type {
+  CloudCover,
+  CloudParam,
+  CombinedCloud,
+  Lightning,
+  Resolution,
+} from "./lib/api";
 import { fillLightningGaps } from "./lib/lightning-fill";
 import { readLatLonFromUrl, writeLatLonToUrl } from "./lib/url-state";
 import type { LatLon } from "./lib/url-state";
@@ -90,7 +103,10 @@ const PARAMS: {
   },
 ];
 
-type ParamResult = { data: CloudCover | CombinedCloud | null; error: string | null };
+type ParamResult = {
+  data: CloudCover | CombinedCloud | null;
+  error: string | null;
+};
 
 export default function App() {
   const [backendOk, setBackendOk] = useState<boolean | null>(null);
@@ -509,6 +525,8 @@ export default function App() {
                 )}
               </div>
             </div>
+
+            <RiskPanel lat={selection.lat} lon={selection.lon} />
 
             {attribution && <p className="text-xs opacity-50">{attribution}</p>}
             {purgeError && <p className="text-xs text-error">{purgeError}</p>}
