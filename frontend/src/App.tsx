@@ -233,7 +233,9 @@ export default function App() {
     ];
   });
 
-  const anyStale = PARAMS.some((p) => results[p.id]?.data?.stale);
+  const anyStale =
+    PARAMS.some((p) => results[p.id]?.data?.stale) ||
+    Boolean(lightning.data?.stale);
   const attribution = PARAMS.map((p) => results[p.id]?.data?.attribution).find(
     Boolean,
   );
@@ -380,17 +382,22 @@ export default function App() {
                 Lightning — strikes within {lightning.data?.radius_km ?? 50} km
               </h3>
               <div className="relative mx-auto aspect-[3/1] w-full max-w-[600px]">
-                {!loading && lightningInWindow.length > 0 && lightning.data && (
+                {!loading && lightning.data && lightningInWindow.length > 0 && (
                   <LightningChart
                     data={{ ...lightning.data, points: lightningInWindow }}
                     resolution={resolution}
                     color="oklch(57% 0.21 27)"
                   />
                 )}
-                {!loading && lightningInWindow.length === 0 && (
-                  <p className="text-sm opacity-70">
-                    No lightning recorded in this period.
-                  </p>
+                {!loading &&
+                  lightning.data &&
+                  lightningInWindow.length === 0 && (
+                    <p className="text-sm opacity-70">
+                      No lightning recorded in this period.
+                    </p>
+                  )}
+                {!loading && !lightning.data && lightning.error && (
+                  <p className="text-sm opacity-50">{lightning.error}</p>
                 )}
               </div>
             </div>
