@@ -24,9 +24,16 @@ class FakeClient:
     def fetch_recent(self, station_id, param=16):
         if self.fail_recent:
             raise httpx.ConnectError("boom")
-        return {"value": [{"date": NOW - 3600_000, "value": "40", "quality": "G"}]}
+        layer_value = {29: "3", 31: "5", 33: "2", 35: "1"}
+        val = layer_value.get(param, "40")
+        return {"value": [{"date": NOW - 3600_000, "value": val, "quality": "G"}]}
 
     def fetch_archive(self, station_id, param=16):
+        if param in (29, 31, 33, 35):
+            req = httpx.Request("GET", "http://smhi/corrected-archive")
+            raise httpx.HTTPStatusError(
+                "404", request=req, response=httpx.Response(404, request=req)
+            )
         return "Datum;Tid (UTC);Total molnmängd;Kvalitet;;\n2025-01-01;00:00:00;80;G;;\n"
 
 
@@ -136,3 +143,25 @@ def test_cloud_cover_param31_octas():
     body = r.json()
     assert body["param"] == 31
     assert body["unit"] == "octas"
+
+
+def test_combined_endpoint_ok():
+    svc = _make_service(FakeClient())
+    client = _client_with(svc)
+    r = client.get(
+        "/api/cloud-cover/combined",
+        params={"lat": 59.05, "lon": 18.05, "resolution": "hourly"},
+    )
+    assert r.status_code == 200
+    body = r.json()
+    assert body["unit"] == "octas"
+    assert body["source_params"] == [29, 31, 33, 35]
+    assert body["station"]["id"] == 1
+    assert any(p["value"] == 5.0 for p in body["points"])  # max of 3/5/2/1
+
+
+def test_combined_endpoint_no_station_is_404():
+    svc = _make_service(FakeClient())
+    client = _client_with(svc)
+    r = client.get("/api/cloud-cover/combined", params={"lat": 0.0, "lon": 0.0})
+    assert r.status_code == 404

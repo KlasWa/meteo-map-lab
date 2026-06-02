@@ -9,7 +9,7 @@ from app.db.session import engine
 from app.repositories.lightning_sqlite import SqliteLightningRepository
 from app.repositories.sqlite import SqliteRepository
 from app.schemas.cache import PurgeResponse
-from app.schemas.cloud_cover import CloudCoverResponse
+from app.schemas.cloud_cover import CloudCoverResponse, CombinedCloudCoverResponse
 from app.schemas.health import HealthResponse
 from app.schemas.lightning import LightningResponse
 from app.services.cloud_cover import (
@@ -71,6 +71,25 @@ def cloud_cover(
 ) -> CloudCoverResponse:
     try:
         return service.get_cloud_cover(lat, lon, resolution, param=int(param))
+    except NoStationFound as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except SMHIUnavailable as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+
+
+@router.get(
+    "/api/cloud-cover/combined",
+    response_model=CombinedCloudCoverResponse,
+    tags=["cloud-cover"],
+)
+def cloud_cover_combined(
+    lat: float,
+    lon: float,
+    resolution: Literal["hourly", "daily", "monthly"] = "daily",
+    service: CloudCoverService = Depends(get_cloud_cover_service),
+) -> CombinedCloudCoverResponse:
+    try:
+        return service.get_combined_low_cloud(lat, lon, resolution)
     except NoStationFound as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except SMHIUnavailable as exc:
