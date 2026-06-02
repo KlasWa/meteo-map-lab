@@ -30,10 +30,15 @@ export function RiskPanel({ lat, lon }: { lat: number; lon: number }) {
       setResult(null);
       return;
     }
+    const lineNum = lineLength.trim() === "" ? undefined : Number(lineLength);
+    if (lineNum !== undefined && !(lineNum > 0)) {
+      setError("Line length must be a positive number, or left blank.");
+      setResult(null);
+      return;
+    }
     setBusy(true);
     setError(null);
     try {
-      const lineNum = lineLength.trim() === "" ? undefined : Number(lineLength);
       const data = await getLightningRisk({
         lat,
         lon,
