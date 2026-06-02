@@ -4,8 +4,9 @@ import { CloudCoverChart } from "./components/CloudCoverChart";
 import type { CloudSeries } from "./components/CloudCoverChart";
 import { LightningChart } from "./components/LightningChart";
 import { MapView } from "./components/MapView";
-import { getCloudCover, getHealth, getLightning, purgeCache } from "./lib/api";
-import type { CloudCover, CloudParam, Lightning, Resolution } from "./lib/api";
+import { getCloudCover, getCombinedCloud, getHealth, getLightning, purgeCache } from "./lib/api";
+import type { CloudCover, CloudParam, CombinedCloud, Lightning, Resolution } from "./lib/api";
+import { fillLightningGaps } from "./lib/lightning-fill";
 import { readLatLonFromUrl, writeLatLonToUrl } from "./lib/url-state";
 import type { LatLon } from "./lib/url-state";
 
@@ -61,29 +62,35 @@ function bearingDeg(
   return ((Math.atan2(y, x) * 180) / Math.PI + 360) % 360;
 }
 
-// The two SMHI parameters shown together. Param 16 (percent) and 29 (octas)
-// have different units, so each maps to its own Y-axis in the chart.
+// The two SMHI series shown together. Param 16 (percent, total cover) and the
+// combined low/mid layer-max (octas) have different units, so each maps to its
+// own Y-axis in the chart.
 const PARAMS: {
   id: CloudParam;
   label: string;
+  description: string;
   color: string;
   axis: "yPercent" | "yOctas";
 }[] = [
   {
     id: 16,
     label: "Total cloud cover",
+    description:
+      "SMHI parameter 16, share of the whole sky covered by cloud, sampled once per hour. Reported in percent (0–100%).",
     color: "oklch(25% 0 0)",
     axis: "yPercent",
   },
   {
     id: 29,
-    label: "Low cloud amount",
+    label: "Cloud amount — layer max (octas)",
+    description:
+      "Max octas across SMHI cloud layers 29/31/33/35 (lowest to highest). SMHI reports layers cumulatively, so the max equals total low/mid cloud cover. Octas 0–8; codes 9–15 (obscured / not observed) are dropped.",
     color: "oklch(57% 0.21 27)",
     axis: "yOctas",
   },
 ];
 
-type ParamResult = { data: CloudCover | null; error: string | null };
+type ParamResult = { data: CloudCover | CombinedCloud | null; error: string | null };
 
 export default function App() {
   const [backendOk, setBackendOk] = useState<boolean | null>(null);
@@ -119,7 +126,10 @@ export default function App() {
     const entries = await Promise.all(
       PARAMS.map(async (p): Promise<[number, ParamResult]> => {
         try {
-          const data = await getCloudCover(sel.lat, sel.lon, res, p.id);
+          const data =
+            p.id === 29
+              ? await getCombinedCloud(sel.lat, sel.lon, res)
+              : await getCloudCover(sel.lat, sel.lon, res, p.id);
           return [p.id, { data, error: null }];
         } catch (e: unknown) {
           return [
@@ -258,6 +268,18 @@ export default function App() {
   ).days;
   const cutoff = selectedDays == null ? 0 : latestTs - selectedDays * DAY_MS;
   const lightningInWindow = lightningPts.filter((p) => p.ts >= cutoff);
+  // The backend omits buckets with no strikes; fill them in so the chart draws
+  // empty hours/days/months as zero bars instead of skipping them. Span the
+  // selected window (or first strike .. latest data when the period is "all").
+  const lightningFilled =
+    lightningInWindow.length > 0
+      ? fillLightningGaps(
+          lightningInWindow,
+          resolution,
+          cutoff > 0 ? cutoff : lightningInWindow[0].ts,
+          latestTs,
+        )
+      : [];
   const series: CloudSeries[] = PARAMS.flatMap((p) => {
     const res = results[p.id];
     if (!res?.data) return [];
@@ -350,46 +372,48 @@ export default function App() {
                   {PARAMS.map((p) => {
                     const res = results[p.id];
                     return (
-                      <div
-                        key={p.id}
-                        className="flex items-center gap-2 text-xs"
-                      >
-                        <span
-                          className="inline-block h-2 w-2 shrink-0 rounded-full"
-                          style={{ backgroundColor: p.color }}
-                        />
-                        <span className="font-semibold">{p.label}:</span>
-                        {res?.data ? (
-                          <span className="flex items-center gap-1 opacity-70">
-                            <span>
-                              {res.data.station.name} (
-                              {res.data.station.distance_km} km)
+                      <div key={p.id}>
+                        <div className="flex items-center gap-2 text-xs">
+                          <span
+                            className="inline-block h-2 w-2 shrink-0 rounded-full"
+                            style={{ backgroundColor: p.color }}
+                          />
+                          <span className="font-semibold">{p.label}:</span>
+                          {res?.data ? (
+                            <span className="flex items-center gap-1 opacity-70">
+                              <span>
+                                {res.data.station.name} (
+                                {res.data.station.distance_km} km)
+                              </span>
+                              <svg
+                                viewBox="0 0 24 24"
+                                className="h-3 w-3 shrink-0"
+                                style={{
+                                  transform: `rotate(${bearingDeg(
+                                    selection.lat,
+                                    selection.lon,
+                                    res.data.station.lat,
+                                    res.data.station.lon,
+                                  )}deg)`,
+                                }}
+                                role="img"
+                                aria-label="Direction to station"
+                              >
+                                <path
+                                  d="M12 2 L18 13 L13 13 L13 22 L11 22 L11 13 L6 13 Z"
+                                  fill="currentColor"
+                                />
+                              </svg>
                             </span>
-                            <svg
-                              viewBox="0 0 24 24"
-                              className="h-3 w-3 shrink-0"
-                              style={{
-                                transform: `rotate(${bearingDeg(
-                                  selection.lat,
-                                  selection.lon,
-                                  res.data.station.lat,
-                                  res.data.station.lon,
-                                )}deg)`,
-                              }}
-                              role="img"
-                              aria-label="Direction to station"
-                            >
-                              <path
-                                d="M12 2 L18 13 L13 13 L13 22 L11 22 L11 13 L6 13 Z"
-                                fill="currentColor"
-                              />
-                            </svg>
-                          </span>
-                        ) : res?.error ? (
-                          <span className="opacity-50">{res.error}</span>
-                        ) : (
-                          <span className="opacity-50">…</span>
-                        )}
+                          ) : res?.error ? (
+                            <span className="opacity-50">{res.error}</span>
+                          ) : (
+                            <span className="opacity-50">…</span>
+                          )}
+                        </div>
+                        <p className="ml-4 text-[0.7rem] leading-snug opacity-50">
+                          {p.description}
+                        </p>
                       </div>
                     );
                   })}
@@ -468,7 +492,7 @@ export default function App() {
                   lightning.data &&
                   lightningInWindow.length > 0 && (
                     <LightningChart
-                      data={{ ...lightning.data, points: lightningInWindow }}
+                      data={{ ...lightning.data, points: lightningFilled }}
                       resolution={resolution}
                       color="oklch(57% 0.21 27)"
                     />

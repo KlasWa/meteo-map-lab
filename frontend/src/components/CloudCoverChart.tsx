@@ -11,7 +11,7 @@ import {
 } from "chart.js";
 import { Line } from "react-chartjs-2";
 
-import type { CloudCover, Resolution } from "../lib/api";
+import type { CloudCover, CombinedCloud, Resolution } from "../lib/api";
 import { formatLabel } from "../lib/chart-format";
 
 ChartJS.register(
@@ -34,7 +34,7 @@ export type CloudSeries = {
   unit: string; // "percent" | "octas" — shown in the legend label
   axis: "yPercent" | "yOctas"; // which Y-axis this series draws against
   color: string;
-  data: CloudCover;
+  data: CloudCover | CombinedCloud;
 };
 
 type Props = {
@@ -96,7 +96,7 @@ export function CloudCoverChart({ series, resolution }: Props) {
           min: 0,
           max: 8,
           grid: { drawOnChartArea: false },
-          title: { display: true, text: "Low cloud (octas)" },
+          title: { display: true, text: "Cloud amount, layer max (octas)" },
         },
         x: {
           ticks: { maxTicksLimit: 8, autoSkip: true },
