@@ -55,6 +55,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/cache": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Purge Cache */
+        delete: operations["purge_cache_api_cache_delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -145,6 +162,15 @@ export interface components {
             attribution: string;
             /** Points */
             points: components["schemas"]["LightningPoint"][];
+        };
+        /** PurgeResponse */
+        PurgeResponse: {
+            /** Scope */
+            scope: string;
+            /** Deleted */
+            deleted: {
+                [key: string]: number;
+            };
         };
         /** StationInfo */
         StationInfo: {
@@ -255,6 +281,37 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["LightningResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    purge_cache_api_cache_delete: {
+        parameters: {
+            query?: {
+                scope?: "all" | "cloud" | "lightning";
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PurgeResponse"];
                 };
             };
             /** @description Validation Error */

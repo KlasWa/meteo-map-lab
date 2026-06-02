@@ -56,3 +56,16 @@ export async function getLightning(
   }
   throw new Error(error ? JSON.stringify(error) : "lightning request failed");
 }
+
+export type Purge =
+  paths["/api/cache"]["delete"]["responses"]["200"]["content"]["application/json"];
+
+export async function purgeCache(
+  scope: "all" | "cloud" | "lightning" = "all",
+): Promise<Purge> {
+  const { data, error } = await client.DELETE("/api/cache", {
+    params: { query: { scope } },
+  });
+  if (data) return data;
+  throw new Error(error ? JSON.stringify(error) : "purge failed");
+}

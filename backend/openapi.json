@@ -166,6 +166,54 @@
           }
         }
       }
+    },
+    "/api/cache": {
+      "delete": {
+        "tags": [
+          "cache"
+        ],
+        "summary": "Purge Cache",
+        "operationId": "purge_cache_api_cache_delete",
+        "parameters": [
+          {
+            "name": "scope",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "all",
+                "cloud",
+                "lightning"
+              ],
+              "type": "string",
+              "default": "all",
+              "title": "Scope"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PurgeResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -360,6 +408,27 @@
           "points"
         ],
         "title": "LightningResponse"
+      },
+      "PurgeResponse": {
+        "properties": {
+          "scope": {
+            "type": "string",
+            "title": "Scope"
+          },
+          "deleted": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "type": "object",
+            "title": "Deleted"
+          }
+        },
+        "type": "object",
+        "required": [
+          "scope",
+          "deleted"
+        ],
+        "title": "PurgeResponse"
       },
       "StationInfo": {
         "properties": {
