@@ -74,3 +74,30 @@ def test_cold_and_unavailable_raises(lrepo):
     svc = _service(lrepo, client)
     with pytest.raises(LightningUnavailable):
         svc.get_lightning(59.0, 18.0, "daily", now_ms=NOW)
+
+
+def test_non_final_day_refetched_after_ttl(lrepo):
+    client = FakeClient()
+    svc = _service(lrepo, client)
+    svc.get_lightning(59.0, 18.0, "daily", now_ms=NOW)
+    first = client.calls
+    later = NOW + settings.lightning_recent_ttl_seconds * 1000 + 1
+    svc.get_lightning(59.0, 18.0, "daily", now_ms=later)
+    # only the two non-final days (today + yesterday) are re-fetched
+    assert client.calls == first + 2
+
+
+def test_serves_cached_when_unavailable(lrepo):
+    from datetime import datetime, timezone
+
+    client = FakeClient()
+    dt = datetime.fromtimestamp((NOW - 3600_000) / 1000, tz=timezone.utc)
+    client.days[(dt.year, dt.month, dt.day)] = [_raw(NOW - 3600_000, 59.30, 18.07)]
+    svc = _service(lrepo, client)
+    svc.get_lightning(59.30, 18.07, "daily", now_ms=NOW)  # warm cache
+
+    client.fail = True
+    later = NOW + settings.lightning_recent_ttl_seconds * 1000 + 1
+    resp = svc.get_lightning(59.30, 18.07, "daily", now_ms=later)
+    assert resp.stale is True
+    assert sum(p.count for p in resp.points) >= 1  # cached strike still served

@@ -10,8 +10,6 @@ from datetime import datetime, timezone
 from math import cos, radians
 from threading import Lock
 
-import httpx
-
 from app.repositories.lightning_base import LightningRepository
 from app.schemas.lightning import LightningCenter, LightningResponse
 from app.services.geo import haversine_km
@@ -54,13 +52,15 @@ class LightningService:
 
     def _fetch_day(self, day_start_ms: int):
         """Network + parse only (runs in worker threads). Returns
-        (day_start_ms, strikes, ok)."""
+        (day_start_ms, strikes, ok). Any failure (network or malformed payload)
+        degrades that day to ok=False so a single bad file can't abort the batch."""
         dt = datetime.fromtimestamp(day_start_ms / 1000, tz=timezone.utc)
         try:
             payload = self.client.fetch_day(dt.year, dt.month, dt.day)
-        except httpx.HTTPError:
+            strikes = parse_day(payload)
+        except Exception:
             return (day_start_ms, [], False)
-        return (day_start_ms, parse_day(payload), True)
+        return (day_start_ms, strikes, True)
 
     def ensure_days(self, day_starts: list[int], now_ms: int) -> bool:
         """Fetch any missing/stale days. Returns True if some fetch failed
