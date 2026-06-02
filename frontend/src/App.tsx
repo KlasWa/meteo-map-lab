@@ -2,9 +2,10 @@ import { useCallback, useEffect, useState } from "react";
 
 import { CloudCoverChart } from "./components/CloudCoverChart";
 import type { CloudSeries } from "./components/CloudCoverChart";
+import { LightningChart } from "./components/LightningChart";
 import { MapView } from "./components/MapView";
-import { getCloudCover, getHealth } from "./lib/api";
-import type { CloudCover, CloudParam, Resolution } from "./lib/api";
+import { getCloudCover, getHealth, getLightning } from "./lib/api";
+import type { CloudCover, CloudParam, Lightning, Resolution } from "./lib/api";
 import { readLatLonFromUrl, writeLatLonToUrl } from "./lib/url-state";
 import type { LatLon } from "./lib/url-state";
 
@@ -96,6 +97,10 @@ export default function App() {
     DEFAULT_PERIOD.monthly,
   );
   const [results, setResults] = useState<Record<number, ParamResult>>({});
+  const [lightning, setLightning] = useState<{
+    data: Lightning | null;
+    error: string | null;
+  }>({ data: null, error: null });
   const [loading, setLoading] = useState(selection !== null);
 
   useEffect(() => {
@@ -116,26 +121,37 @@ export default function App() {
   useEffect(() => {
     if (!selection) return;
     let cancelled = false;
-    Promise.all(
-      PARAMS.map(async (p): Promise<[number, ParamResult]> => {
-        try {
-          const data = await getCloudCover(
-            selection.lat,
-            selection.lon,
-            resolution,
-            p.id,
-          );
-          return [p.id, { data, error: null }];
-        } catch (e: unknown) {
-          return [
-            p.id,
-            { data: null, error: e instanceof Error ? e.message : "failed" },
-          ];
-        }
-      }),
-    )
-      .then((entries) => {
-        if (!cancelled) setResults(Object.fromEntries(entries));
+    Promise.all([
+      Promise.all(
+        PARAMS.map(async (p): Promise<[number, ParamResult]> => {
+          try {
+            const data = await getCloudCover(
+              selection.lat,
+              selection.lon,
+              resolution,
+              p.id,
+            );
+            return [p.id, { data, error: null }];
+          } catch (e: unknown) {
+            return [
+              p.id,
+              { data: null, error: e instanceof Error ? e.message : "failed" },
+            ];
+          }
+        }),
+      ),
+      getLightning(selection.lat, selection.lon, resolution).then(
+        (data) => ({ data, error: null }),
+        (e: unknown) => ({
+          data: null,
+          error: e instanceof Error ? e.message : "failed",
+        }),
+      ),
+    ])
+      .then(([cloudEntries, lightningResult]) => {
+        if (cancelled) return;
+        setResults(Object.fromEntries(cloudEntries));
+        setLightning(lightningResult);
       })
       .finally(() => {
         if (!cancelled) setLoading(false);
@@ -148,6 +164,7 @@ export default function App() {
   const handleSelect = useCallback((lat: number, lon: number) => {
     setLoading(true);
     setResults({});
+    setLightning({ data: null, error: null });
     setSelection({ lat, lon });
   }, []);
 
@@ -156,6 +173,7 @@ export default function App() {
       if (r === resolution || !selection) return;
       setLoading(true);
       setResults({});
+      setLightning({ data: null, error: null });
       setResolution(r);
       setPeriodLabel(DEFAULT_PERIOD[r]);
     },
@@ -165,6 +183,7 @@ export default function App() {
   const handleClear = useCallback(() => {
     setSelection(null);
     setResults({});
+    setLightning({ data: null, error: null });
     setLoading(false);
   }, []);
 
@@ -182,16 +201,21 @@ export default function App() {
   // most recent data point (avoids an impure Date.now() in render and tracks
   // the latest available data, which can lag "now"). Points are sorted ascending,
   // so each series' last point is its max timestamp.
-  const latestTs = PARAMS.reduce((max, p) => {
-    const pts = results[p.id]?.data?.points;
-    const last = pts && pts.length ? pts[pts.length - 1].ts : 0;
-    return last > max ? last : max;
-  }, 0);
+  const lightningPts = lightning.data?.points ?? [];
+  const latestTs = PARAMS.reduce(
+    (max, p) => {
+      const pts = results[p.id]?.data?.points;
+      const last = pts && pts.length ? pts[pts.length - 1].ts : 0;
+      return last > max ? last : max;
+    },
+    lightningPts.length ? lightningPts[lightningPts.length - 1].ts : 0,
+  );
   const periodOptions = PERIODS_BY_RESOLUTION[resolution];
   const selectedDays = (
     periodOptions.find((p) => p.label === periodLabel) ?? periodOptions[0]
   ).days;
   const cutoff = selectedDays == null ? 0 : latestTs - selectedDays * DAY_MS;
+  const lightningInWindow = lightningPts.filter((p) => p.ts >= cutoff);
   const series: CloudSeries[] = PARAMS.flatMap((p) => {
     const res = results[p.id];
     if (!res?.data) return [];
@@ -239,7 +263,9 @@ export default function App() {
             <div className="card card-compact border border-base-300 bg-base-100">
               <div className="card-body gap-2">
                 <div className="flex items-center justify-between gap-2">
-                  <h2 className="card-title text-base">Selected location</h2>
+                  <h2 className="card-title text-base opacity-60">
+                    {selection.lat.toFixed(5)}, {selection.lon.toFixed(5)}
+                  </h2>
                   <button
                     type="button"
                     onClick={handleClear}
@@ -249,9 +275,6 @@ export default function App() {
                     ✕
                   </button>
                 </div>
-                <p className="font-mono text-xs opacity-60">
-                  {selection.lat.toFixed(5)}, {selection.lon.toFixed(5)}
-                </p>
                 <div className="space-y-1">
                   {PARAMS.map((p) => {
                     const res = results[p.id];
@@ -350,6 +373,26 @@ export default function App() {
                   No cloud-cover data for this location and range.
                 </p>
               )}
+            </div>
+
+            <div className="mt-2">
+              <h3 className="mb-1 text-xs font-semibold opacity-70">
+                Lightning — strikes within {lightning.data?.radius_km ?? 50} km
+              </h3>
+              <div className="relative mx-auto aspect-[3/1] w-full max-w-[600px]">
+                {!loading && lightningInWindow.length > 0 && lightning.data && (
+                  <LightningChart
+                    data={{ ...lightning.data, points: lightningInWindow }}
+                    resolution={resolution}
+                    color="oklch(57% 0.21 27)"
+                  />
+                )}
+                {!loading && lightningInWindow.length === 0 && (
+                  <p className="text-sm opacity-70">
+                    No lightning recorded in this period.
+                  </p>
+                )}
+              </div>
             </div>
 
             {attribution && <p className="text-xs opacity-50">{attribution}</p>}
