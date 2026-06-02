@@ -20,3 +20,10 @@ def engine():
 @pytest.fixture
 def repo(engine):
     return SqliteRepository(engine)
+
+
+@pytest.fixture
+def lrepo(engine):
+    from app.repositories.lightning_sqlite import SqliteLightningRepository
+
+    return SqliteLightningRepository(engine)
