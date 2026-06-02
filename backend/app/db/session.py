@@ -16,15 +16,18 @@ def _apply_sqlite_pragmas(dbapi_conn) -> None:
     """Configure each SQLite connection for concurrent access.
 
     Cloud (param 16 + 29) and lightning requests run in parallel FastAPI
-    threadpool threads against one SQLite file. WAL lets readers proceed while a
-    single writer works, and a generous busy timeout makes a blocked writer wait
-    for the lock instead of failing with 'database is locked'. synchronous=NORMAL
-    is the safe, faster pairing with WAL.
+    threadpool threads against one SQLite file, so writers contend for SQLite's
+    single write lock. A generous busy timeout makes a blocked writer wait for
+    the lock instead of failing with 'database is locked'.
+
+    NOTE: WAL is deliberately NOT enabled. The DB is bind-mounted into the
+    container (Docker Desktop's virtualized filesystem on macOS), where WAL's
+    memory-mapped -shm file is unsupported and raises 'disk I/O error'. The
+    rollback journal uses plain POSIX locks that work there; the busy timeout
+    plus short (batched) write transactions handle the contention.
     """
     cur = dbapi_conn.cursor()
-    cur.execute("PRAGMA journal_mode=WAL")
     cur.execute("PRAGMA busy_timeout=30000")  # ms
-    cur.execute("PRAGMA synchronous=NORMAL")
     cur.close()
 
 
