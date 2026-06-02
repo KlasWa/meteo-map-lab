@@ -6,14 +6,18 @@ from fastapi import APIRouter, Depends, HTTPException
 
 from app.core.config import settings
 from app.db.session import engine
+from app.repositories.lightning_sqlite import SqliteLightningRepository
 from app.repositories.sqlite import SqliteRepository
 from app.schemas.cloud_cover import CloudCoverResponse
 from app.schemas.health import HealthResponse
+from app.schemas.lightning import LightningResponse
 from app.services.cloud_cover import (
     CloudCoverService,
     NoStationFound,
     SMHIUnavailable,
 )
+from app.services.lightning import LightningService, LightningUnavailable
+from app.services.lightning_client import LightningClient
 from app.services.smhi import SMHIClient
 
 router = APIRouter()
@@ -34,6 +38,14 @@ def get_cloud_cover_service() -> CloudCoverService:
 
     client = SMHIClient(base_url=settings.smhi_base_url)
     return CloudCoverService(client, SqliteRepository(engine), settings)
+
+
+@lru_cache(maxsize=1)
+def get_lightning_service() -> LightningService:
+    """Lazily build a process-wide LightningService. Overridable in tests."""
+
+    client = LightningClient(base_url=settings.lightning_base_url)
+    return LightningService(client, SqliteLightningRepository(engine), settings)
 
 
 @router.get("/health", response_model=HealthResponse, tags=["system"])
@@ -58,4 +70,21 @@ def cloud_cover(
     except NoStationFound as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except SMHIUnavailable as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+
+
+@router.get(
+    "/api/lightning",
+    response_model=LightningResponse,
+    tags=["lightning"],
+)
+def lightning(
+    lat: float,
+    lon: float,
+    resolution: Literal["hourly", "daily", "monthly"] = "daily",
+    service: LightningService = Depends(get_lightning_service),
+) -> LightningResponse:
+    try:
+        return service.get_lightning(lat, lon, resolution)
+    except LightningUnavailable as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
