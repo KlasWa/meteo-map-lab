@@ -29,7 +29,10 @@ class CloudParam(IntEnum):
     is validated (422 on anything else) and surfaces as an int enum in OpenAPI."""
 
     TOTAL = 16  # total cloud cover, percent
-    LOW = 29  # low-cloud amount, octas
+    LOW = 29  # low-cloud amount, lowest layer, octas
+    LAYER_2 = 31  # cloud amount, 2nd layer, octas
+    LAYER_3 = 33  # cloud amount, 3rd layer, octas
+    LAYER_4 = 35  # cloud amount, 4th layer, octas
 
 
 @lru_cache(maxsize=1)

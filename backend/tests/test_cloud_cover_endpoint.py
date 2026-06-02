@@ -123,3 +123,16 @@ def test_cloud_cover_invalid_param_is_422():
     client = _client_with(svc)
     r = client.get("/api/cloud-cover", params={"lat": 59.0, "lon": 18.0, "param": 99})
     assert r.status_code == 422
+
+
+def test_cloud_cover_param31_octas():
+    svc = _make_service(FakeClient())
+    client = _client_with(svc)
+    r = client.get(
+        "/api/cloud-cover",
+        params={"lat": 59.05, "lon": 18.05, "resolution": "daily", "param": 31},
+    )
+    assert r.status_code == 200
+    body = r.json()
+    assert body["param"] == 31
+    assert body["unit"] == "octas"

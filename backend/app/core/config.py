@@ -8,9 +8,13 @@ class Settings(BaseSettings):
     database_url: str = "sqlite:///./elvy_map.db"
     smhi_base_url: str = "https://opendata-download-metobs.smhi.se/api"
     cloud_cover_param: int = 16  # default parameter for the endpoint
-    cloud_cover_params: list[int] = [16, 29]  # supported parameters
+    cloud_cover_params: list[int] = [16, 29, 31, 33, 35]  # supported parameters
+    cloud_cover_layer_params: list[int] = [29, 31, 33, 35]  # octa layers, low->high,
+    # combined (max) by the /api/cloud-cover/combined endpoint
     history_months: int = 13  # how far back to retain/serve
     recent_ttl_seconds: int = 3600  # re-fetch latest-months window after this
+    archive_ttl_days: int = 30  # re-fetch corrected-archive after this, to pick
+    # up SMHI quality corrections folded in after latest-months ages out
     station_list_ttl_days: int = 1  # refresh station list after this
     nearest_max_km: float = 250.0  # reject coordinates with no station within
     # (wider than typical: active param-16 stations are sparse since manual
