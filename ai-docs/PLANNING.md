@@ -106,9 +106,9 @@ geocoding → MapTiler). Capture future open decisions as specs in
    `stale` flag, and SMHI attribution).
 6. Frontend overlays both parameters on a Chart.js line chart with separate
    Y-axes (percent left, octas right).
-
-> Lightning probability is not yet implemented; the flow above currently
-> covers cloud cover only.
+7. Frontend calls `GET /api/lightning?lat=&lon=&resolution=` to fetch strike
+   counts within a fixed radius of the coordinate, charted as bars alongside
+   the cloud-cover lines.
 
 ## Deployment (Terraform)
 
@@ -136,10 +136,16 @@ geocoding → MapTiler). Capture future open decisions as specs in
    identically and overlaid on a dual-axis chart; `param` is a first-class
    dimension across client/service/cache/API. ✅ Done (see
    `docs/superpowers/plans/2026-06-01-multi-parameter-cloud-cover.md`).
-6. **Lightning-strike probability** — separate SMHI parameter + calculation,
-   exposed and charted. ⏳ Not started.
-7. **Deployment** — Terraform for hosted environments. ⏳ Not started.
-8. **Bonus** — GitHub Actions CI/CD; AI forecasting. ⏳ Not started.
+6. **Lightning-strike probability** — lightning strike counts within a fixed
+   radius (default 50 km) are fetched from the SMHI lightning archive, cached
+   per-day in SQLite, aggregated hourly/daily/monthly, and charted as bars
+   below the cloud chart. ✅ Done (see
+   `docs/superpowers/plans/2026-06-01-smhi-lightning.md`).
+7. **Deployment** — Terraform for hosted environments on GCP (Cloud Run +
+   Litestream-backed SQLite + GitHub Actions). 🟡 Designed; see
+   `docs/superpowers/specs/2026-06-01-gcp-cloud-run-litestream-deploy-design.md`.
+8. **Bonus** — AI forecasting. ⏳ Not started. (CI/CD is folded into the
+   deployment spec above.)
 
 > Deferred within the cloud-cover work (see spec §9): scheduled background
 > refresh, multi-station "region" aggregation, quality-code filtering, and an
@@ -160,4 +166,4 @@ geocoding → MapTiler). Capture future open decisions as specs in
 - **`specs/`** — one file per feature/decision before it is built. Use the
   spec workflow (`/spec-generate` → `/spec-implement` → `/spec-finish`).
 
-_Last updated: 2026-06-01 (multi-parameter cloud cover: param 16 + 29 overlaid on a dual-axis chart)._
+_Last updated: 2026-06-02 (lightning strike counts cached and charted below cloud cover)._
