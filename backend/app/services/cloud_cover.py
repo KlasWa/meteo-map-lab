@@ -46,6 +46,7 @@ class CloudCoverService:
         self.client = client
         self.repo = repo
         self.recent_ttl_ms = settings.recent_ttl_seconds * 1000
+        self.archive_ttl_ms = settings.archive_ttl_days * 24 * 3600 * 1000
         self.station_list_ttl_ms = settings.station_list_ttl_days * 24 * 3600 * 1000
         self.history_ms = settings.history_months * _MONTH_MS
         self.nearest_max_km = settings.nearest_max_km
@@ -102,11 +103,22 @@ class CloudCoverService:
                     station_id, RECENT, now_ms, _min_ts(obs), _max_ts(obs), param=param
                 )
 
-        # Archive: fetch once, then never again (immutable).
+        # Archive: re-fetch on a long TTL. SMHI quality-controls latest-months
+        # data into the corrected-archive after it ages out (months later), so
+        # a fetch-once cache would keep the uncorrected values forever. The
+        # observation upsert (ON CONFLICT DO UPDATE) folds the corrections in.
         archive_log = self.repo.get_fetch_log(station_id, ARCHIVE, param=param)
-        if archive_log is None:
+        if archive_log is None or now_ms - archive_log.fetched_at > self.archive_ttl_ms:
             try:
                 text = self.client.fetch_archive(station_id, param=param)
+            except httpx.HTTPStatusError as exc:
+                if exc.response.status_code != 404:
+                    raise SMHIUnavailable(str(exc)) from exc
+                # No corrected-archive file for this station/param (common for
+                # higher cloud layers). Not an outage: record the attempt so we
+                # honor the TTL, and keep whatever the recent window provided.
+                self.repo.record_fetch(station_id, ARCHIVE, now_ms, None, None, param=param)
+                return
             except httpx.HTTPError as exc:
                 raise SMHIUnavailable(str(exc)) from exc
             cutoff = now_ms - self.history_ms

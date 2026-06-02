@@ -19,6 +19,7 @@ class FakeClient:
         self.archive_calls = 0
         self.fail_recent = False
         self.recent_404 = False
+        self.archive_404 = False
 
     def fetch_station_list(self, param=16):
         self.station_calls += 1
@@ -38,6 +39,11 @@ class FakeClient:
 
     def fetch_archive(self, station_id, param=16):
         self.archive_calls += 1
+        if self.archive_404:
+            req = httpx.Request("GET", "http://smhi/corrected-archive")
+            raise httpx.HTTPStatusError(
+                "404", request=req, response=httpx.Response(404, request=req)
+            )
         # one point inside 13 months, one ancient point that must be dropped
         return (
             "Datum;Tid (UTC);Total molnmängd;Kvalitet;;\n"
@@ -81,6 +87,21 @@ def test_recent_refetched_after_ttl(repo):
     svc.ensure_cached(1, now_ms=NOW + settings.recent_ttl_seconds * 1000 + 1)
     assert client.recent_calls == 2
     assert client.archive_calls == 1  # archive still once
+
+
+def test_archive_refetched_after_ttl(repo):
+    client = FakeClient()
+    svc = _service(repo, client)
+    svc.ensure_cached(1, now_ms=NOW)
+    assert client.archive_calls == 1
+
+    # Within the archive TTL: not re-fetched.
+    svc.ensure_cached(1, now_ms=NOW + svc.archive_ttl_ms)
+    assert client.archive_calls == 1
+
+    # Past the archive TTL: re-fetched to pick up SMHI quality corrections.
+    svc.ensure_cached(1, now_ms=NOW + svc.archive_ttl_ms + 1)
+    assert client.archive_calls == 2
 
 
 def test_recent_failure_raises_smhi_unavailable(repo):
@@ -168,3 +189,19 @@ def test_get_cloud_cover_param29_uses_octas_unit(repo):
     assert resp.station.id == 1
     # The recent octas value (5) is served as-is, not converted.
     assert any(p.value == 5.0 for p in resp.points)
+
+
+def test_archive_404_is_not_fatal(repo):
+    # Layers 3/4 often lack a corrected-archive file (404). That must not fail
+    # the request: record the attempt and serve the recent window instead.
+    client = FakeClient()
+    client.archive_404 = True
+    svc = _service(repo, client)
+    svc.ensure_cached(1, now_ms=NOW)  # must not raise
+    assert client.recent_calls == 1
+    assert client.archive_calls == 1
+    # Recorded so we honor the archive TTL and don't re-hammer SMHI.
+    assert repo.get_fetch_log(1, "archive") is not None
+    # The recent observation is still cached and served.
+    rows = repo.get_observations(1, 0, NOW)
+    assert any(r.value == 40.0 for r in rows)
