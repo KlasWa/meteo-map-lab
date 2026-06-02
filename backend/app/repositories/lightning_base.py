@@ -26,3 +26,6 @@ class LightningRepository(ABC):
         start_ts: int,
         end_ts: int,
     ) -> list[StrikeRaw]: ...
+
+    @abstractmethod
+    def has_any_day(self) -> bool: ...

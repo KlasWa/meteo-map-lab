@@ -101,3 +101,18 @@ def test_serves_cached_when_unavailable(lrepo):
     resp = svc.get_lightning(59.30, 18.07, "daily", now_ms=later)
     assert resp.stale is True
     assert sum(p.count for p in resp.points) >= 1  # cached strike still served
+
+
+def test_warm_cache_then_outage_serves_empty_not_503(lrepo):
+    # Warm the cache successfully (all days fetch OK, zero strikes everywhere).
+    client = FakeClient()
+    svc = _service(lrepo, client)
+    svc.get_lightning(59.0, 18.0, "daily", now_ms=NOW)
+
+    # Later, SMHI is down (today/yesterday re-fetch fails) and this location has
+    # no strikes. The warm cache must serve an empty result, NOT raise 503.
+    client.fail = True
+    later = NOW + settings.lightning_recent_ttl_seconds * 1000 + 1
+    resp = svc.get_lightning(59.0, 18.0, "daily", now_ms=later)
+    assert resp.stale is True
+    assert resp.points == []

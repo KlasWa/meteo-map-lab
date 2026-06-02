@@ -116,7 +116,7 @@ class LightningService:
         within = [
             s for s in candidates if haversine_km(lat, lon, s.lat, s.lon) <= self.radius_km
         ]
-        if not within and stale and self.repo.get_day(day_key(now_ms)) is None:
+        if stale and not self.repo.has_any_day():
             raise LightningUnavailable("SMHI lightning is unavailable and nothing is cached.")
 
         return LightningResponse(

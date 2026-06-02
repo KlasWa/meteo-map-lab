@@ -50,6 +50,10 @@ class SqliteLightningRepository(LightningRepository):
             s.execute(stmt)
             s.commit()
 
+    def has_any_day(self) -> bool:
+        with Session(self._engine) as s:
+            return s.exec(select(LightningDay.day_start_ms).limit(1)).first() is not None
+
     def strikes_in_bbox(
         self,
         min_lat: float,
