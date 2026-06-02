@@ -8,6 +8,11 @@ from app.dto import StrikeRaw
 from app.models import LightningDay, LightningStrike
 from app.repositories.lightning_base import LightningRepository
 
+# Cap bound variables per INSERT well under SQLite's SQLITE_MAX_VARIABLE_NUMBER
+# (>=999 on any version) so a busy day's tens of thousands of strikes are
+# inserted in batches rather than one oversized statement.
+_MAX_SQL_VARS = 900
+
 
 class SqliteLightningRepository(LightningRepository):
     def __init__(self, engine: Engine) -> None:
@@ -26,12 +31,14 @@ class SqliteLightningRepository(LightningRepository):
             }
             for s in strikes
         ]
-        stmt = sqlite_insert(LightningStrike).values(rows)
-        stmt = stmt.on_conflict_do_nothing(
-            index_elements=["ts_utc", "lat", "lon"],
-        )
+        chunk = max(1, _MAX_SQL_VARS // 5)  # 5 columns per row
         with Session(self._engine) as s:
-            s.execute(stmt)
+            for i in range(0, len(rows), chunk):
+                stmt = sqlite_insert(LightningStrike).values(rows[i : i + chunk])
+                stmt = stmt.on_conflict_do_nothing(
+                    index_elements=["ts_utc", "lat", "lon"],
+                )
+                s.execute(stmt)
             s.commit()
 
     def get_day(self, day_start_ms: int) -> LightningDay | None:

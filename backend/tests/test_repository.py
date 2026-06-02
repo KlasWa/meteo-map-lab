@@ -138,3 +138,32 @@ def test_purge_clears_cloud(repo):
 
 def test_purge_empty_returns_zeros(repo):
     assert repo.purge() == {"observations": 0, "stations": 0, "fetch_logs": 0}
+
+
+def test_upsert_many_observations_batches_under_var_limit():
+    # A full hourly archive is thousands of rows; a single multi-row INSERT
+    # exceeds SQLite's bound-variable limit. Cap it low (1500) to force the crash
+    # deterministically and prove upsert batches.
+    import sqlite3
+
+    from sqlalchemy import event
+    from sqlalchemy.pool import StaticPool
+    from sqlmodel import SQLModel, create_engine
+
+    from app.repositories.sqlite import SqliteRepository
+
+    engine = create_engine(
+        "sqlite://",
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool,
+    )
+
+    @event.listens_for(engine, "connect")
+    def _cap_vars(dbapi_conn, _rec):  # noqa: ANN001
+        dbapi_conn.setlimit(sqlite3.SQLITE_LIMIT_VARIABLE_NUMBER, 1500)
+
+    SQLModel.metadata.create_all(engine)
+    repo = SqliteRepository(engine)
+    obs = [ParsedObs(1000 + i, 50.0, "G") for i in range(5000)]  # 25k params total
+    repo.upsert_observations(1, obs)
+    assert len(repo.get_observations(1, 0, 1_000_000)) == 5000

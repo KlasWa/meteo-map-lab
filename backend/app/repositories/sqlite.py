@@ -10,6 +10,11 @@ from app.models import FetchLog, Observation, Station
 from app.repositories.base import CacheRepository
 from app.services.geo import haversine_km
 
+# Cap bound variables per INSERT well under SQLite's SQLITE_MAX_VARIABLE_NUMBER
+# (>=999 on any version) so large station lists / archives are inserted in
+# batches rather than one oversized statement.
+_MAX_SQL_VARS = 900
+
 
 class SqliteRepository(CacheRepository):
     def __init__(self, engine: Engine) -> None:
@@ -31,20 +36,22 @@ class SqliteRepository(CacheRepository):
             }
             for s in stations
         ]
-        stmt = sqlite_insert(Station).values(rows)
-        stmt = stmt.on_conflict_do_update(
-            index_elements=["param", "id"],
-            set_={
-                "name": stmt.excluded.name,
-                "lat": stmt.excluded.lat,
-                "lon": stmt.excluded.lon,
-                "active": stmt.excluded.active,
-                "from_ts": stmt.excluded.from_ts,
-                "to_ts": stmt.excluded.to_ts,
-            },
-        )
+        chunk = max(1, _MAX_SQL_VARS // 8)  # 8 columns per row
         with Session(self._engine) as s:
-            s.execute(stmt)
+            for i in range(0, len(rows), chunk):
+                stmt = sqlite_insert(Station).values(rows[i : i + chunk])
+                stmt = stmt.on_conflict_do_update(
+                    index_elements=["param", "id"],
+                    set_={
+                        "name": stmt.excluded.name,
+                        "lat": stmt.excluded.lat,
+                        "lon": stmt.excluded.lon,
+                        "active": stmt.excluded.active,
+                        "from_ts": stmt.excluded.from_ts,
+                        "to_ts": stmt.excluded.to_ts,
+                    },
+                )
+                s.execute(stmt)
             s.commit()
 
     def station_count(self, param: int = 16) -> int:
@@ -93,16 +100,18 @@ class SqliteRepository(CacheRepository):
             }
             for o in obs
         ]
-        stmt = sqlite_insert(Observation).values(rows)
-        stmt = stmt.on_conflict_do_update(
-            index_elements=["param", "station_id", "ts_utc"],
-            set_={
-                "value": stmt.excluded.value,
-                "quality": stmt.excluded.quality,
-            },
-        )
+        chunk = max(1, _MAX_SQL_VARS // 5)  # 5 columns per row
         with Session(self._engine) as s:
-            s.execute(stmt)
+            for i in range(0, len(rows), chunk):
+                stmt = sqlite_insert(Observation).values(rows[i : i + chunk])
+                stmt = stmt.on_conflict_do_update(
+                    index_elements=["param", "station_id", "ts_utc"],
+                    set_={
+                        "value": stmt.excluded.value,
+                        "quality": stmt.excluded.quality,
+                    },
+                )
+                s.execute(stmt)
             s.commit()
 
     def get_observations(

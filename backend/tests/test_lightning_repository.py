@@ -46,3 +46,33 @@ def test_purge_clears_lightning(lrepo):
 
 def test_purge_empty_lightning_returns_zeros(lrepo):
     assert lrepo.purge() == {"lightning_strikes": 0, "lightning_days": 0}
+
+
+def test_upsert_many_strikes_batches_under_var_limit():
+    # A busy day has tens of thousands of strikes; a single multi-row INSERT
+    # exceeds SQLite's bound-variable limit. Cap the limit low (1500) to make the
+    # crash deterministic regardless of host SQLite, and prove upsert batches.
+    import sqlite3
+
+    from sqlalchemy import event
+    from sqlalchemy.pool import StaticPool
+    from sqlmodel import SQLModel, create_engine
+
+    from app.repositories.lightning_sqlite import SqliteLightningRepository
+
+    engine = create_engine(
+        "sqlite://",
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool,
+    )
+
+    @event.listens_for(engine, "connect")
+    def _cap_vars(dbapi_conn, _rec):  # noqa: ANN001
+        dbapi_conn.setlimit(sqlite3.SQLITE_LIMIT_VARIABLE_NUMBER, 1500)
+
+    SQLModel.metadata.create_all(engine)
+    repo = SqliteLightningRepository(engine)
+    strikes = [_s(1000 + i, 59.0, 18.0) for i in range(5000)]  # 25k params total
+    repo.upsert_strikes(strikes)
+    rows = repo.strikes_in_bbox(0.0, 90.0, 0.0, 90.0, 0, 1_000_000)
+    assert len(rows) == 5000
