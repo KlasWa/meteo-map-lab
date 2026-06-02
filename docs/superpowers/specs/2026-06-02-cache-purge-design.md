@@ -89,20 +89,25 @@ None required (ungated).
 - `frontend/src/lib/api.ts`: `purgeCache(scope: "all" | "cloud" | "lightning" =
   "all"): Promise<Purge>` calling `client.DELETE("/api/cache", { params: {
   query: { scope } } })`; `Purge` type from the regenerated OpenAPI schema.
-- A small purge button **next to each chart**, scoped to that chart (daisyUI
-  `btn btn-ghost btn-xs` matching the flat theme, e.g. labelled "Purge" or a
-  trash glyph, in a small header row beside the chart title):
-  - Cloud chart → purges `cloud`.
-  - Lightning chart → purges `lightning`.
-- On click: confirm first (`window.confirm` is acceptable; copy per scope, e.g.
-  "Purge cached cloud data and re-fetch from SMHI?" / "Purge cached lightning
-  data and re-fetch from SMHI? (lightning is slow to refill)"). On confirm, call
-  `purgeCache(scope)`.
-- On success: **re-fetch that chart's data** for the current selection +
-  resolution (so it repopulates with fresh data), reusing the existing fetch
-  paths (`getCloudCover` for the two params / `getLightning`). Show the chart's
-  loading state while refetching. On error (purge or refetch): show a short
-  error line for that chart.
+- A small purge button **next to each chart**, scoped to that chart, in a small
+  header row beside the chart title:
+  - daisyUI `btn btn-ghost btn-xs btn-circle` matching the flat theme.
+  - Icon: a **circular / round-arrows (refresh)** inline SVG — fitting since the
+    action is purge-and-refresh. `aria-label` per scope ("Purge & refresh cloud
+    data" / "Purge & refresh lightning data").
+  - Cloud chart → purges `cloud`; lightning chart → purges `lightning`.
+- On click: open a **daisyUI confirmation modal** (a `<dialog class="modal">`
+  with `modal-box` + `modal-action`, opened via the dialog ref's `showModal()`).
+  A single shared modal is driven by a `pendingScope: "cloud" | "lightning" |
+  null` state; the modal title/body are scope-specific (e.g. "Purge cached cloud
+  data and re-fetch from SMHI?" / "Purge cached lightning data and re-fetch from
+  SMHI? Lightning is slow to refill."). Actions: a "Cancel" button (closes the
+  modal) and a primary "Purge & refresh" button.
+- On confirm: close the modal, call `purgeCache(pendingScope)`, then **re-fetch
+  that chart's data** for the current selection + resolution (repopulating with
+  fresh data) via the existing fetch paths (`getCloudCover` for the two params /
+  `getLightning`). Show the chart's loading state while refetching. On error
+  (purge or refetch): show a short error line for that chart.
 - A per-chart in-flight guard disables that chart's purge button while its
   request is running.
 - If no location is selected, the purge buttons are not shown (there are no
