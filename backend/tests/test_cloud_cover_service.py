@@ -20,6 +20,7 @@ class FakeClient:
         self.fail_recent = False
         self.recent_404 = False
         self.archive_404 = False
+        self.layer_recent_404: set[int] = set()  # params whose recent file 404s
 
     def fetch_station_list(self, param=16):
         self.station_calls += 1
@@ -27,24 +28,25 @@ class FakeClient:
 
     def fetch_recent(self, station_id, param=16):
         self.recent_calls += 1
-        if self.recent_404:
+        if self.recent_404 or param in self.layer_recent_404:
             req = httpx.Request("GET", "http://smhi/latest-months")
             raise httpx.HTTPStatusError(
                 "404", request=req, response=httpx.Response(404, request=req)
             )
         if self.fail_recent:
             raise httpx.ConnectError("boom")
-        val = "5" if param == 29 else "40"
+        # Distinct octa per layer so the max is identifiable; 40 for total(16).
+        layer_value = {29: "3", 31: "5", 33: "2", 35: "1"}
+        val = layer_value.get(param, "40")
         return {"value": [{"date": NOW - 3600_000, "value": val, "quality": "G"}]}
 
     def fetch_archive(self, station_id, param=16):
         self.archive_calls += 1
-        if self.archive_404:
+        if self.archive_404 or param in (29, 31, 33, 35):
             req = httpx.Request("GET", "http://smhi/corrected-archive")
             raise httpx.HTTPStatusError(
                 "404", request=req, response=httpx.Response(404, request=req)
             )
-        # one point inside 13 months, one ancient point that must be dropped
         return (
             "Datum;Tid (UTC);Total molnmängd;Kvalitet;;\n"
             "2025-01-01;00:00:00;80;G;;\n"
@@ -187,8 +189,8 @@ def test_get_cloud_cover_param29_uses_octas_unit(repo):
     assert resp.param == 29
     assert resp.unit == "octas"
     assert resp.station.id == 1
-    # The recent octas value (5) is served as-is, not converted.
-    assert any(p.value == 5.0 for p in resp.points)
+    # The recent octas value (3) is served as-is, not converted.
+    assert any(p.value == 3.0 for p in resp.points)
 
 
 def test_archive_404_is_not_fatal(repo):
@@ -205,3 +207,45 @@ def test_archive_404_is_not_fatal(repo):
     # The recent observation is still cached and served.
     rows = repo.get_observations(1, 0, NOW)
     assert any(r.value == 40.0 for r in rows)
+
+
+def test_combined_takes_max_across_layers(repo):
+    client = FakeClient()
+    svc = _service(repo, client)
+    resp = svc.get_combined_low_cloud(59.05, 18.05, "hourly", now_ms=NOW)
+    assert resp.unit == "octas"
+    assert resp.source_params == [29, 31, 33, 35]
+    assert resp.station.id == 1
+    assert resp.stale is False
+    # layer values 3/5/2/1 -> max 5
+    assert any(p.value == 5.0 for p in resp.points)
+
+
+def test_combined_resilient_to_missing_layers(repo):
+    # Station reports only layers 1 and 2; 3 and 4 have no recent file (404).
+    client = FakeClient()
+    client.layer_recent_404 = {33, 35}
+    svc = _service(repo, client)
+    resp = svc.get_combined_low_cloud(59.05, 18.05, "hourly", now_ms=NOW)
+    # max of layers 1 (3) and 2 (5) = 5
+    assert any(p.value == 5.0 for p in resp.points)
+    assert resp.stale is False
+
+
+def test_combined_no_station_raises(repo):
+    client = FakeClient()
+    svc = _service(repo, client)
+    with pytest.raises(NoStationFound):
+        svc.get_combined_low_cloud(0.0, 0.0, "daily", now_ms=NOW)
+
+
+def test_combined_stale_when_layer_refresh_fails(repo):
+    client = FakeClient()
+    svc = _service(repo, client)
+    svc.get_combined_low_cloud(59.05, 18.05, "hourly", now_ms=NOW)  # warm cache
+    client.fail_recent = True
+    resp = svc.get_combined_low_cloud(
+        59.05, 18.05, "hourly", now_ms=NOW + settings.recent_ttl_seconds * 1000 + 1
+    )
+    assert resp.stale is True
+    assert len(resp.points) >= 1

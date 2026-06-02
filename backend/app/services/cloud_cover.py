@@ -6,8 +6,13 @@ from threading import Lock
 import httpx
 
 from app.repositories.base import CacheRepository
-from app.schemas.cloud_cover import CloudCoverResponse, StationInfo
+from app.schemas.cloud_cover import (
+    CloudCoverResponse,
+    CombinedCloudCoverResponse,
+    StationInfo,
+)
 from app.services.aggregate import aggregate
+from app.services.combine import merge_layers_max
 from app.services.geo import haversine_km
 from app.services.parameters import PARAMETERS
 from app.services.smhi import SMHIClient
@@ -43,6 +48,7 @@ class CloudCoverService:
         repo: CacheRepository,
         settings,
     ) -> None:
+        self.settings = settings
         self.client = client
         self.repo = repo
         self.recent_ttl_ms = settings.recent_ttl_seconds * 1000
@@ -173,6 +179,63 @@ class CloudCoverService:
             param=param,
             resolution=resolution,
             unit=PARAMETERS[param].unit,
+            stale=stale,
+            points=points,
+        )
+
+    def get_combined_low_cloud(
+        self,
+        lat: float,
+        lon: float,
+        resolution: str,
+        now_ms: int | None = None,
+    ) -> CombinedCloudCoverResponse:
+        """Combined octas series = per-timestamp max across the layer params.
+        Anchors on the nearest station reporting the lowest layer (densest),
+        then reads the higher layers from that same station id."""
+        now_ms = now_ms if now_ms is not None else self._now_ms()
+        layers = self.settings.cloud_cover_layer_params
+        anchor = layers[0]
+
+        self.ensure_station_list(anchor, now_ms)
+        station = self.repo.nearest_station(lat, lon, self.nearest_max_km, param=anchor)
+        if station is None:
+            raise NoStationFound(
+                f"No SMHI station within {self.nearest_max_km} km of ({lat}, {lon})."
+            )
+
+        stale = False
+        for param in layers:
+            with self._lock_for(param, station.id):
+                try:
+                    self.ensure_cached(station.id, now_ms, param=param)
+                except SMHIUnavailable:
+                    stale = True
+
+        start = now_ms - self.history_ms
+        layer_obs = [
+            self.repo.get_observations(station.id, start, now_ms, param=param)
+            for param in layers
+        ]
+        merged = merge_layers_max(layer_obs)
+        if not merged and stale:
+            raise SMHIUnavailable(
+                "SMHI is unavailable and no cached layer data exists for this station."
+            )
+
+        points = aggregate(merged, resolution)
+        distance = haversine_km(lat, lon, station.lat, station.lon)
+        return CombinedCloudCoverResponse(
+            station=StationInfo(
+                id=station.id,
+                name=station.name,
+                lat=station.lat,
+                lon=station.lon,
+                distance_km=round(distance, 2),
+            ),
+            source_params=list(layers),
+            resolution=resolution,
+            unit="octas",
             stale=stale,
             points=points,
         )
