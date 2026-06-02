@@ -17,7 +17,7 @@ export async function getHealth() {
   return data;
 }
 
-export type CloudParam = 16 | 29;
+export type CloudParam = 16 | 29 | 31 | 33 | 35;
 
 export async function getCloudCover(
   lat: number,
@@ -37,6 +37,27 @@ export async function getCloudCover(
     throw new Error("SMHI is unavailable and no data is cached yet.");
   }
   throw new Error(error ? JSON.stringify(error) : "cloud-cover request failed");
+}
+
+export type CombinedCloud =
+  paths["/api/cloud-cover/combined"]["get"]["responses"]["200"]["content"]["application/json"];
+
+export async function getCombinedCloud(
+  lat: number,
+  lon: number,
+  resolution: Resolution,
+): Promise<CombinedCloud> {
+  const { data, error, response } = await client.GET("/api/cloud-cover/combined", {
+    params: { query: { lat, lon, resolution } },
+  });
+  if (data) return data;
+  if (response.status === 404) {
+    throw new Error("No SMHI station near that location.");
+  }
+  if (response.status === 503) {
+    throw new Error("SMHI is unavailable and no data is cached yet.");
+  }
+  throw new Error(error ? JSON.stringify(error) : "combined cloud request failed");
 }
 
 export type Lightning =
