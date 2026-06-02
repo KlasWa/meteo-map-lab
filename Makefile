@@ -1,7 +1,7 @@
 COMPOSE = docker compose -f .devcontainer/docker-compose.yml
 COMPOSE_DEBUG = docker compose -f .devcontainer/docker-compose.yml -f .devcontainer/docker-compose.debug.yml
 
-.PHONY: up down rebuild debug reset-db test gen-schema gen-types gen-api
+.PHONY: up down rebuild debug reset-db ingest-lightning test gen-schema gen-types gen-api
 
 up:
 	$(COMPOSE) up --build
@@ -30,6 +30,10 @@ rebuild:
 reset-db:
 	rm -f backend/elvy_map.db
 	$(COMPOSE) restart backend
+
+# Warm the lightning cache (fetches up to ~12 months of national day-files).
+ingest-lightning:
+	$(COMPOSE) exec -T backend uv run python scripts/ingest_lightning.py
 
 # Regenerate the OpenAPI schema (backend toolchain).
 gen-schema:
