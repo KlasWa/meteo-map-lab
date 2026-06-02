@@ -2,7 +2,7 @@
 
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.engine import Engine
-from sqlmodel import Session, select
+from sqlmodel import Session, delete, select
 
 from app.dto import StrikeRaw
 from app.models import LightningDay, LightningStrike
@@ -84,3 +84,15 @@ class SqliteLightningRepository(LightningRepository):
             )
             for r in rows
         ]
+
+    def purge(self) -> dict[str, int]:
+        # Count then delete: SQLite DELETE-without-WHERE rowcount is unreliable.
+        with Session(self._engine) as s:
+            counts = {
+                "lightning_strikes": len(s.exec(select(LightningStrike.id)).all()),
+                "lightning_days": len(s.exec(select(LightningDay.day_start_ms)).all()),
+            }
+            s.execute(delete(LightningStrike))
+            s.execute(delete(LightningDay))
+            s.commit()
+        return counts

@@ -29,3 +29,6 @@ class LightningRepository(ABC):
 
     @abstractmethod
     def has_any_day(self) -> bool: ...
+
+    @abstractmethod
+    def purge(self) -> dict[str, int]: ...

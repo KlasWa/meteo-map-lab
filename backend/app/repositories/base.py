@@ -43,3 +43,6 @@ class CacheRepository(ABC):
         covered_to: int | None,
         param: int = 16,
     ) -> None: ...
+
+    @abstractmethod
+    def purge(self) -> dict[str, int]: ...

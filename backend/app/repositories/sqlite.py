@@ -3,7 +3,7 @@
 
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.engine import Engine
-from sqlmodel import Session, select
+from sqlmodel import Session, delete, select
 
 from app.dto import ParsedObs, StationRaw
 from app.models import FetchLog, Observation, Station
@@ -163,3 +163,17 @@ class SqliteRepository(CacheRepository):
         with Session(self._engine) as s:
             s.execute(stmt)
             s.commit()
+
+    def purge(self) -> dict[str, int]:
+        # Count then delete: SQLite DELETE-without-WHERE rowcount is unreliable.
+        with Session(self._engine) as s:
+            counts = {
+                "observations": len(s.exec(select(Observation.id)).all()),
+                "stations": len(s.exec(select(Station.id)).all()),
+                "fetch_logs": len(s.exec(select(FetchLog.id)).all()),
+            }
+            s.execute(delete(Observation))
+            s.execute(delete(Station))
+            s.execute(delete(FetchLog))
+            s.commit()
+        return counts

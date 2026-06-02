@@ -124,3 +124,17 @@ def test_fetch_log_isolated_by_param(repo):
     assert repo.get_fetch_log(1, "recent", param=29) is None
     log = repo.get_fetch_log(1, "recent", param=16)
     assert log.fetched_at == 100
+
+
+def test_purge_clears_cloud(repo):
+    repo.upsert_stations([StationRaw(id=1, name="S", lat=59.0, lon=18.0, active=True)])
+    repo.upsert_observations(1, [ParsedObs(1000, 50.0, "G")])
+    repo.record_fetch(0, "station_list", 1, None, None)
+    counts = repo.purge()
+    assert counts == {"observations": 1, "stations": 1, "fetch_logs": 1}
+    assert repo.station_count() == 0
+    assert repo.get_observations(1, 0, 2000) == []
+
+
+def test_purge_empty_returns_zeros(repo):
+    assert repo.purge() == {"observations": 0, "stations": 0, "fetch_logs": 0}
