@@ -23,3 +23,13 @@ class CloudCoverResponse(BaseModel):
     stale: bool = False
     attribution: str = "Data: SMHI (CC BY 4.0)"
     points: list[CloudPoint]
+
+
+class CombinedCloudCoverResponse(BaseModel):
+    station: StationInfo
+    source_params: list[int]  # layers combined, e.g. [29, 31, 33, 35]
+    resolution: str
+    unit: str  # "octas"
+    stale: bool = False
+    attribution: str = "Data: SMHI (CC BY 4.0)"
+    points: list[CloudPoint]
