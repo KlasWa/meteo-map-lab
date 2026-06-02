@@ -8,6 +8,7 @@ from app.core.config import settings
 from app.db.session import engine
 from app.repositories.lightning_sqlite import SqliteLightningRepository
 from app.repositories.sqlite import SqliteRepository
+from app.schemas.cache import PurgeResponse
 from app.schemas.cloud_cover import CloudCoverResponse
 from app.schemas.health import HealthResponse
 from app.schemas.lightning import LightningResponse
@@ -88,3 +89,17 @@ def lightning(
         return service.get_lightning(lat, lon, resolution)
     except LightningUnavailable as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
+
+
+@router.delete("/api/cache", response_model=PurgeResponse, tags=["cache"])
+def purge_cache(
+    scope: Literal["all", "cloud", "lightning"] = "all",
+    cloud: CloudCoverService = Depends(get_cloud_cover_service),
+    lightning_svc: LightningService = Depends(get_lightning_service),
+) -> PurgeResponse:
+    deleted: dict[str, int] = {}
+    if scope in ("all", "cloud"):
+        deleted.update(cloud.repo.purge())
+    if scope in ("all", "lightning"):
+        deleted.update(lightning_svc.repo.purge())
+    return PurgeResponse(scope=scope, deleted=deleted)
