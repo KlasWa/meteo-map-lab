@@ -110,6 +110,13 @@ geocoding → MapTiler). Capture future open decisions as specs in
    counts within a fixed radius of the coordinate, charted as bars alongside
    the cloud-cover lines.
 
+### Cache Purging
+
+The backend exposes `DELETE /api/cache?scope=all|cloud|lightning` to purge cached
+SMHI data (rows only, not the schema). Each chart has a small "purge & refresh"
+button (circular-arrows icon) that opens a daisyUI confirm modal, purges that
+chart's cached data, and re-fetches it immediately.
+
 ## Deployment (Terraform)
 
 - Infrastructure described as code under a future `infra/` (or `terraform/`)
@@ -166,4 +173,4 @@ geocoding → MapTiler). Capture future open decisions as specs in
 - **`specs/`** — one file per feature/decision before it is built. Use the
   spec workflow (`/spec-generate` → `/spec-implement` → `/spec-finish`).
 
-_Last updated: 2026-06-02 (lightning strike counts cached and charted below cloud cover)._
+_Last updated: 2026-06-02 (cache-purge endpoint and per-chart purge buttons added)._
