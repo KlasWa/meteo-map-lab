@@ -1,21 +1,8 @@
 """Aggregate hourly observations into hourly/daily/monthly points (UTC)."""
 
-from datetime import datetime, timezone
-
 from app.dto import ParsedObs
 from app.schemas.cloud_cover import CloudPoint
-
-
-def _day_key(ts_ms: int) -> int:
-    dt = datetime.fromtimestamp(ts_ms / 1000, tz=timezone.utc)
-    start = datetime(dt.year, dt.month, dt.day, tzinfo=timezone.utc)
-    return int(start.timestamp() * 1000)
-
-
-def _month_key(ts_ms: int) -> int:
-    dt = datetime.fromtimestamp(ts_ms / 1000, tz=timezone.utc)
-    start = datetime(dt.year, dt.month, 1, tzinfo=timezone.utc)
-    return int(start.timestamp() * 1000)
+from app.services.timebuckets import day_key, month_key
 
 
 def aggregate(obs: list[ParsedObs], resolution: str) -> list[CloudPoint]:
@@ -29,7 +16,7 @@ def aggregate(obs: list[ParsedObs], resolution: str) -> list[CloudPoint]:
             for o in obs
         ]
 
-    key_fn = _day_key if resolution == "daily" else _month_key
+    key_fn = day_key if resolution == "daily" else month_key
     buckets: dict[int, list[float | None]] = {}
     for o in obs:
         buckets.setdefault(key_fn(o.ts_utc), []).append(o.value)
