@@ -11,10 +11,18 @@ class Settings(BaseSettings):
     cloud_cover_params: list[int] = [16, 29]  # supported parameters
     history_months: int = 13  # how far back to retain/serve
     recent_ttl_seconds: int = 3600  # re-fetch latest-months window after this
-    station_list_ttl_days: int = 30  # refresh station list after this
+    station_list_ttl_days: int = 1  # refresh station list after this
     nearest_max_km: float = 250.0  # reject coordinates with no station within
     # (wider than typical: active param-16 stations are sparse since manual
     # cloud obs are being phased out — see param 29 for denser coverage)
+
+    lightning_base_url: str = (
+        "https://opendata-download-lightning.smhi.se/api/version/latest"
+    )
+    lightning_radius_km: float = 50.0  # count strikes within this radius
+    lightning_history_months: int = 12  # how far back to retain/serve
+    lightning_recent_ttl_seconds: int = 3600  # re-fetch today/yesterday after this
+    lightning_fetch_workers: int = 8  # parallel day-file fetches on cold start
 
 
 settings = Settings()
