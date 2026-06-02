@@ -73,6 +73,14 @@ no double-counting) — and the ledger's `count` + `fetched_at` are updated.
 `app/dto.py` gains `StrikeRaw` (storage-agnostic): `ts_utc, lat, lon,
 peak_current, cloud_indicator`.
 
+**Time representation:** all timestamps are stored and served as UTC **epoch
+milliseconds (`int`)**, consistent with the cloud-cover feature and the shared
+`timebuckets` / `formatLabel` helpers, and chosen for unambiguous, fast SQLite
+range comparisons on the bbox+time hot path. Timezone-aware UTC `datetime`s are
+used only internally at the boundaries — parsing strike fields into ms, and
+computing hour/day/month bucket starts — so there are no naive datetimes
+anywhere; only the stored/wire format is an integer.
+
 ## Backend Components
 
 Parallel to the cloud components, kept separate by responsibility.
