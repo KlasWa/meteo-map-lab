@@ -47,9 +47,12 @@ export async function getCombinedCloud(
   lon: number,
   resolution: Resolution,
 ): Promise<CombinedCloud> {
-  const { data, error, response } = await client.GET("/api/cloud-cover/combined", {
-    params: { query: { lat, lon, resolution } },
-  });
+  const { data, error, response } = await client.GET(
+    "/api/cloud-cover/combined",
+    {
+      params: { query: { lat, lon, resolution } },
+    },
+  );
   if (data) return data;
   if (response.status === 404) {
     throw new Error("No SMHI station near that location.");
@@ -57,7 +60,9 @@ export async function getCombinedCloud(
   if (response.status === 503) {
     throw new Error("SMHI is unavailable and no data is cached yet.");
   }
-  throw new Error(error ? JSON.stringify(error) : "combined cloud request failed");
+  throw new Error(
+    error ? JSON.stringify(error) : "combined cloud request failed",
+  );
 }
 
 export type Lightning =
@@ -76,6 +81,36 @@ export async function getLightning(
     throw new Error("SMHI lightning is unavailable and no data is cached yet.");
   }
   throw new Error(error ? JSON.stringify(error) : "lightning request failed");
+}
+
+export type LightningRisk =
+  paths["/api/lightning-risk"]["get"]["responses"]["200"]["content"]["application/json"];
+
+export type LocationFactor = 0.25 | 0.5 | 1 | 2;
+
+export interface RiskInput {
+  lat: number;
+  lon: number;
+  length_m: number;
+  width_m: number;
+  height_m: number;
+  location_factor: LocationFactor;
+  line_length_m?: number;
+}
+
+export async function getLightningRisk(
+  input: RiskInput,
+): Promise<LightningRisk> {
+  const { data, error, response } = await client.GET("/api/lightning-risk", {
+    params: { query: input },
+  });
+  if (data) return data;
+  if (response.status === 503) {
+    throw new Error("SMHI lightning is unavailable and no data is cached yet.");
+  }
+  throw new Error(
+    error ? JSON.stringify(error) : "lightning-risk request failed",
+  );
 }
 
 export type Purge =
