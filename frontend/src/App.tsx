@@ -1,10 +1,10 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import { CloudCoverChart } from "./components/CloudCoverChart";
 import type { CloudSeries } from "./components/CloudCoverChart";
 import { LightningChart } from "./components/LightningChart";
 import { MapView } from "./components/MapView";
-import { getCloudCover, getHealth, getLightning } from "./lib/api";
+import { getCloudCover, getHealth, getLightning, purgeCache } from "./lib/api";
 import type { CloudCover, CloudParam, Lightning, Resolution } from "./lib/api";
 import { readLatLonFromUrl, writeLatLonToUrl } from "./lib/url-state";
 import type { LatLon } from "./lib/url-state";
@@ -115,6 +115,38 @@ export default function App() {
     writeLatLonToUrl(selection);
   }, [selection]);
 
+  const loadCloud = useCallback(async (sel: LatLon, res: Resolution) => {
+    const entries = await Promise.all(
+      PARAMS.map(async (p): Promise<[number, ParamResult]> => {
+        try {
+          const data = await getCloudCover(sel.lat, sel.lon, res, p.id);
+          return [p.id, { data, error: null }];
+        } catch (e: unknown) {
+          return [
+            p.id,
+            { data: null, error: e instanceof Error ? e.message : "failed" },
+          ];
+        }
+      }),
+    );
+    return Object.fromEntries(entries) as Record<number, ParamResult>;
+  }, []);
+
+  const loadLightning = useCallback(
+    async (
+      sel: LatLon,
+      res: Resolution,
+    ): Promise<{ data: Lightning | null; error: string | null }> => {
+      try {
+        const data = await getLightning(sel.lat, sel.lon, res);
+        return { data, error: null };
+      } catch (e: unknown) {
+        return { data: null, error: e instanceof Error ? e.message : "failed" };
+      }
+    },
+    [],
+  );
+
   // Fetch every parameter in parallel whenever location or resolution changes.
   // Each parameter resolves its own nearest station, so they settle
   // independently — one can fail (no nearby station) while the other renders.
@@ -122,35 +154,12 @@ export default function App() {
     if (!selection) return;
     let cancelled = false;
     Promise.all([
-      Promise.all(
-        PARAMS.map(async (p): Promise<[number, ParamResult]> => {
-          try {
-            const data = await getCloudCover(
-              selection.lat,
-              selection.lon,
-              resolution,
-              p.id,
-            );
-            return [p.id, { data, error: null }];
-          } catch (e: unknown) {
-            return [
-              p.id,
-              { data: null, error: e instanceof Error ? e.message : "failed" },
-            ];
-          }
-        }),
-      ),
-      getLightning(selection.lat, selection.lon, resolution).then(
-        (data) => ({ data, error: null }),
-        (e: unknown) => ({
-          data: null,
-          error: e instanceof Error ? e.message : "failed",
-        }),
-      ),
+      loadCloud(selection, resolution),
+      loadLightning(selection, resolution),
     ])
-      .then(([cloudEntries, lightningResult]) => {
+      .then(([cloudResults, lightningResult]) => {
         if (cancelled) return;
-        setResults(Object.fromEntries(cloudEntries));
+        setResults(cloudResults);
         setLightning(lightningResult);
       })
       .finally(() => {
@@ -159,7 +168,7 @@ export default function App() {
     return () => {
       cancelled = true;
     };
-  }, [selection, resolution]);
+  }, [selection, resolution, loadCloud, loadLightning]);
 
   const handleSelect = useCallback((lat: number, lon: number) => {
     setLoading(true);
@@ -195,6 +204,39 @@ export default function App() {
       else handleSelect(lat, lon);
     },
     [selection, handleClear, handleSelect],
+  );
+
+  const [pendingScope, setPendingScope] = useState<
+    "cloud" | "lightning" | null
+  >(null);
+  const [purging, setPurging] = useState<"cloud" | "lightning" | null>(null);
+  const [purgeError, setPurgeError] = useState<string | null>(null);
+  const purgeModalRef = useRef<HTMLDialogElement>(null);
+
+  const openPurge = useCallback((scope: "cloud" | "lightning") => {
+    setPendingScope(scope);
+    purgeModalRef.current?.showModal();
+  }, []);
+
+  const purgeAndRefetch = useCallback(
+    async (scope: "cloud" | "lightning") => {
+      if (!selection) return;
+      setPurging(scope);
+      setPurgeError(null);
+      try {
+        await purgeCache(scope);
+        if (scope === "cloud") {
+          setResults(await loadCloud(selection, resolution));
+        } else {
+          setLightning(await loadLightning(selection, resolution));
+        }
+      } catch (e: unknown) {
+        setPurgeError(e instanceof Error ? e.message : "purge failed");
+      } finally {
+        setPurging(null);
+      }
+    },
+    [selection, resolution, loadCloud, loadLightning],
   );
 
   // Filter the fetched points to the selected period. Window relative to the
@@ -238,6 +280,33 @@ export default function App() {
     Boolean(lightning.data?.stale);
   const attribution = PARAMS.map((p) => results[p.id]?.data?.attribution).find(
     Boolean,
+  );
+
+  const cloudBusy = loading || purging === "cloud";
+  const lightningBusy = loading || purging === "lightning";
+
+  const purgeButton = (scope: "cloud" | "lightning", label: string) => (
+    <button
+      type="button"
+      onClick={() => openPurge(scope)}
+      disabled={purging !== null}
+      className="btn btn-ghost btn-xs btn-circle"
+      aria-label={label}
+    >
+      <svg
+        viewBox="0 0 24 24"
+        className="h-3.5 w-3.5"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth={2}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        aria-hidden="true"
+      >
+        <path d="M21 12a9 9 0 1 1-2.64-6.36" />
+        <path d="M21 3v6h-6" />
+      </svg>
+    </button>
   );
 
   return (
@@ -361,16 +430,20 @@ export default function App() {
               </select>
             </div>
 
+            <div className="flex items-center justify-between">
+              <h3 className="text-xs font-semibold opacity-70">Cloud cover</h3>
+              {purgeButton("cloud", "Purge & refresh cloud data")}
+            </div>
             <div className="relative mx-auto aspect-[2/1] w-full max-w-[600px]">
-              {loading && (
+              {cloudBusy && (
                 <div className="absolute inset-0 flex items-center justify-center">
                   <span className="loading loading-spinner loading-lg" />
                 </div>
               )}
-              {!loading && series.length > 0 && (
+              {!cloudBusy && series.length > 0 && (
                 <CloudCoverChart series={series} resolution={resolution} />
               )}
-              {!loading && series.length === 0 && (
+              {!cloudBusy && series.length === 0 && (
                 <p className="text-sm opacity-70">
                   No cloud-cover data for this location and range.
                 </p>
@@ -378,33 +451,79 @@ export default function App() {
             </div>
 
             <div className="mt-2">
-              <h3 className="mb-1 text-xs font-semibold opacity-70">
-                Lightning — strikes within {lightning.data?.radius_km ?? 50} km
-              </h3>
+              <div className="mb-1 flex items-center justify-between">
+                <h3 className="text-xs font-semibold opacity-70">
+                  Lightning — strikes within {lightning.data?.radius_km ?? 50}{" "}
+                  km
+                </h3>
+                {purgeButton("lightning", "Purge & refresh lightning data")}
+              </div>
               <div className="relative mx-auto aspect-[3/1] w-full max-w-[600px]">
-                {!loading && lightning.data && lightningInWindow.length > 0 && (
-                  <LightningChart
-                    data={{ ...lightning.data, points: lightningInWindow }}
-                    resolution={resolution}
-                    color="oklch(57% 0.21 27)"
-                  />
+                {lightningBusy && (
+                  <div className="absolute inset-0 flex items-center justify-center">
+                    <span className="loading loading-spinner loading-lg" />
+                  </div>
                 )}
-                {!loading &&
+                {!lightningBusy &&
+                  lightning.data &&
+                  lightningInWindow.length > 0 && (
+                    <LightningChart
+                      data={{ ...lightning.data, points: lightningInWindow }}
+                      resolution={resolution}
+                      color="oklch(57% 0.21 27)"
+                    />
+                  )}
+                {!lightningBusy &&
                   lightning.data &&
                   lightningInWindow.length === 0 && (
                     <p className="text-sm opacity-70">
                       No lightning recorded in this period.
                     </p>
                   )}
-                {!loading && !lightning.data && lightning.error && (
+                {!lightningBusy && !lightning.data && lightning.error && (
                   <p className="text-sm opacity-50">{lightning.error}</p>
                 )}
               </div>
             </div>
 
             {attribution && <p className="text-xs opacity-50">{attribution}</p>}
+            {purgeError && <p className="text-xs text-error">{purgeError}</p>}
           </>
         )}
+
+        <dialog ref={purgeModalRef} className="modal">
+          <div className="modal-box">
+            <h3 className="text-base font-bold">
+              Purge cached {pendingScope} data?
+            </h3>
+            <p className="py-2 text-sm opacity-70">
+              This deletes the cached {pendingScope} data and re-fetches it from
+              SMHI
+              {pendingScope === "lightning"
+                ? " (lightning is slow to refill)"
+                : ""}
+              .
+            </p>
+            <div className="modal-action">
+              <form method="dialog">
+                <button className="btn btn-ghost btn-sm">Cancel</button>
+              </form>
+              <button
+                type="button"
+                className="btn btn-primary btn-sm"
+                onClick={() => {
+                  purgeModalRef.current?.close();
+                  if (pendingScope) void purgeAndRefetch(pendingScope);
+                }}
+              >
+                Purge &amp; refresh
+              </button>
+            </div>
+          </div>
+          <form method="dialog" className="modal-backdrop">
+            <button aria-label="Close">close</button>
+          </form>
+        </dialog>
 
         <div className="justify-end flex items-center gap-1.5 text-xs opacity-60 mt-auto">
           <span
