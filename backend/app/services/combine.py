@@ -7,14 +7,17 @@ from app.dto import ParsedObs
 
 
 def merge_layers_max(series: list[list[ParsedObs]]) -> list[ParsedObs]:
-    """Per-timestamp max over non-None layer values, sorted by timestamp.
-    Timestamps where every layer is None or absent are omitted."""
-    by_ts: dict[int, float] = {}
+    """Return one series with, per timestamp, the max non-None value across layers.
+
+    The quality of the winning (max-value) observation is preserved. Timestamps
+    where every layer is None or absent are omitted. Ties keep the first-seen
+    observation. Result is sorted ascending by timestamp."""
+    by_ts: dict[int, tuple[float, str]] = {}
     for obs in series:
         for o in obs:
             if o.value is None:
                 continue
             cur = by_ts.get(o.ts_utc)
-            if cur is None or o.value > cur:
-                by_ts[o.ts_utc] = o.value
-    return [ParsedObs(ts, by_ts[ts], "G") for ts in sorted(by_ts)]
+            if cur is None or o.value > cur[0]:
+                by_ts[o.ts_utc] = (o.value, o.quality)
+    return [ParsedObs(ts, by_ts[ts][0], by_ts[ts][1]) for ts in sorted(by_ts)]

@@ -32,3 +32,10 @@ def test_result_is_sorted_by_timestamp():
     layer1 = [ParsedObs(3000, 1.0, "G"), ParsedObs(1000, 1.0, "G")]
     merged = merge_layers_max([layer1])
     assert [o.ts_utc for o in merged] == [1000, 3000]
+
+
+def test_quality_of_winning_observation_is_preserved():
+    layer1 = [ParsedObs(1000, 2.0, "G")]
+    layer2 = [ParsedObs(1000, 5.0, "Y")]  # wins on value, quality Y
+    merged = merge_layers_max([layer1, layer2])
+    assert merged[0].quality == "Y"
