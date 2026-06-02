@@ -229,6 +229,8 @@ def test_combined_resilient_to_missing_layers(repo):
     resp = svc.get_combined_low_cloud(59.05, 18.05, "hourly", now_ms=NOW)
     # max of layers 1 (3) and 2 (5) = 5
     assert any(p.value == 5.0 for p in resp.points)
+    # A recent-window 404 means "no file for this layer", not an outage, so it
+    # does not mark the result stale (unlike a connection error — see below).
     assert resp.stale is False
 
 
@@ -249,3 +251,13 @@ def test_combined_stale_when_layer_refresh_fails(repo):
     )
     assert resp.stale is True
     assert len(resp.points) >= 1
+
+
+def test_combined_raises_when_smhi_down_and_no_cache(repo):
+    # SMHI unreachable on a cold cache: every layer refresh fails and there is
+    # nothing cached to fall back on -> the combined endpoint surfaces 503.
+    client = FakeClient()
+    client.fail_recent = True
+    svc = _service(repo, client)
+    with pytest.raises(SMHIUnavailable):
+        svc.get_combined_low_cloud(59.05, 18.05, "hourly", now_ms=NOW)
