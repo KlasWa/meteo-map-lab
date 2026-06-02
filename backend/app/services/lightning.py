@@ -6,12 +6,15 @@ all DB writes happen on the calling thread to avoid SQLite write contention."""
 
 import time
 from concurrent.futures import ThreadPoolExecutor
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from math import cos, radians
 from threading import Lock
 
+from app.dto import StrikeRaw
 from app.repositories.lightning_base import LightningRepository
 from app.schemas.lightning import LightningCenter, LightningResponse
+from app.services import lightning_risk
 from app.services.geo import haversine_km
 from app.services.lightning_aggregate import aggregate_counts
 from app.services.lightning_client import LightningClient
@@ -21,6 +24,16 @@ from app.services.timebuckets import day_key
 _DAY_MS = 24 * 3600 * 1000
 _MONTH_MS = 30 * _DAY_MS
 _KM_PER_DEG_LAT = 111.0
+
+
+@dataclass(frozen=True)
+class DensityResult:
+    n_g: float  # flashes/km^2/yr
+    ground_flash_count: int
+    total_flash_count: int
+    span_years: float
+    radius_km: float
+    stale: bool
 
 
 class LightningUnavailable(Exception):
@@ -38,6 +51,7 @@ class LightningService:
         self.repo = repo
         self.radius_km = settings.lightning_radius_km
         self.history_ms = settings.lightning_history_months * _MONTH_MS
+        self.history_months = settings.lightning_history_months
         self.recent_ttl_ms = settings.lightning_recent_ttl_seconds * 1000
         self.workers = settings.lightning_fetch_workers
         self._lock = Lock()
@@ -89,17 +103,12 @@ class LightningService:
                 stale = True
         return stale
 
-    def get_lightning(
-        self,
-        lat: float,
-        lon: float,
-        resolution: str,
-        now_ms: int | None = None,
-    ) -> LightningResponse:
-        now_ms = now_ms if now_ms is not None else self._now_ms()
-        start_ms = now_ms - self.history_ms
+    def _strikes_within(
+        self, lat: float, lon: float, start_ms: int, now_ms: int
+    ) -> tuple[list[StrikeRaw], bool]:
+        """Ensure the window is cached, then return (strikes within radius_km of
+        the point, stale). Shared by get_lightning and ground_flash_density."""
         day_starts = self._day_starts(start_ms, now_ms)
-
         with self._lock:
             stale = self.ensure_days(day_starts, now_ms)
 
@@ -116,6 +125,19 @@ class LightningService:
         within = [
             s for s in candidates if haversine_km(lat, lon, s.lat, s.lon) <= self.radius_km
         ]
+        return within, stale
+
+    def get_lightning(
+        self,
+        lat: float,
+        lon: float,
+        resolution: str,
+        now_ms: int | None = None,
+    ) -> LightningResponse:
+        now_ms = now_ms if now_ms is not None else self._now_ms()
+        start_ms = now_ms - self.history_ms
+
+        within, stale = self._strikes_within(lat, lon, start_ms, now_ms)
         if stale and not self.repo.has_any_day():
             raise LightningUnavailable("SMHI lightning is unavailable and nothing is cached.")
 
@@ -125,4 +147,31 @@ class LightningService:
             resolution=resolution,
             stale=stale,
             points=aggregate_counts(within, resolution),
+        )
+
+    def ground_flash_density(
+        self, lat: float, lon: float, now_ms: int | None = None
+    ) -> DensityResult:
+        """Empirical ground flash density N_G from cached strikes around the
+        point: ground flashes (cloud_indicator == 0) within radius_km, over the
+        retained window, annualized. Raises LightningUnavailable when SMHI is
+        down and nothing is cached (mirrors get_lightning)."""
+        now_ms = now_ms if now_ms is not None else self._now_ms()
+        start_ms = now_ms - self.history_ms
+
+        within, stale = self._strikes_within(lat, lon, start_ms, now_ms)
+        if stale and not self.repo.has_any_day():
+            raise LightningUnavailable("SMHI lightning is unavailable and nothing is cached.")
+
+        total = len(within)
+        ground = sum(1 for s in within if s.cloud_indicator == 0)
+        span_years = self.history_months / 12
+        n_g = lightning_risk.ground_flash_density(ground, self.radius_km, span_years)
+        return DensityResult(
+            n_g=n_g,
+            ground_flash_count=ground,
+            total_flash_count=total,
+            span_years=span_years,
+            radius_km=self.radius_km,
+            stale=stale,
         )

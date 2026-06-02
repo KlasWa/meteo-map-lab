@@ -7,7 +7,7 @@ from app.services.lightning import LightningService, LightningUnavailable
 NOW = 1_700_000_000_000  # fixed "now" in ms
 
 
-def _raw(ts_ms, lat, lon):
+def _raw(ts_ms, lat, lon, cloud_indicator=0):
     from datetime import datetime, timezone
 
     dt = datetime.fromtimestamp(ts_ms / 1000, tz=timezone.utc)
@@ -22,7 +22,7 @@ def _raw(ts_ms, lat, lon):
         "lat": lat,
         "lon": lon,
         "peakCurrent": -5,
-        "cloudIndicator": 0,
+        "cloudIndicator": cloud_indicator,
     }
 
 
@@ -116,3 +116,63 @@ def test_warm_cache_then_outage_serves_empty_not_503(lrepo):
     resp = svc.get_lightning(59.0, 18.0, "daily", now_ms=later)
     assert resp.stale is True
     assert resp.points == []
+
+
+def test_ground_flash_density_counts_ground_only(lrepo):
+    from datetime import datetime, timezone
+
+    client = FakeClient()
+    # Two ground flashes and one cloud flash, all near the point and recent.
+    g1 = _raw(NOW - 3600_000, 59.30, 18.07, cloud_indicator=0)
+    g2 = _raw(NOW - 7200_000, 59.31, 18.08, cloud_indicator=0)
+    c1 = _raw(NOW - 7200_000, 59.31, 18.06, cloud_indicator=1)
+    dt = datetime.fromtimestamp((NOW - 3600_000) / 1000, tz=timezone.utc)
+    client.days[(dt.year, dt.month, dt.day)] = [g1, g2, c1]
+
+    svc = _service(lrepo, client)
+    d = svc.ground_flash_density(59.30, 18.07, now_ms=NOW)
+
+    assert d.total_flash_count == 3
+    assert d.ground_flash_count == 2
+    assert d.radius_km == settings.lightning_radius_km
+    assert d.span_years == settings.lightning_history_months / 12
+    # N_G uses ground count only.
+    from math import isclose, pi
+
+    expected = 2 / (pi * d.radius_km * d.radius_km) / d.span_years
+    assert isclose(d.n_g, expected)
+    assert d.stale is False
+
+
+def test_ground_flash_density_excludes_far_strikes(lrepo):
+    from datetime import datetime, timezone
+
+    client = FakeClient()
+    near = _raw(NOW - 3600_000, 59.30, 18.07, cloud_indicator=0)
+    far = _raw(NOW - 3600_000, 62.00, 18.07, cloud_indicator=0)  # ~300 km away
+    dt = datetime.fromtimestamp((NOW - 3600_000) / 1000, tz=timezone.utc)
+    client.days[(dt.year, dt.month, dt.day)] = [near, far]
+
+    svc = _service(lrepo, client)
+    d = svc.ground_flash_density(59.30, 18.07, now_ms=NOW)
+    assert d.ground_flash_count == 1
+    assert d.total_flash_count == 1
+
+
+def test_ground_flash_density_cold_and_unavailable_raises(lrepo):
+    client = FakeClient()
+    client.fail = True
+    svc = _service(lrepo, client)
+    with pytest.raises(LightningUnavailable):
+        svc.ground_flash_density(59.0, 18.0, now_ms=NOW)
+
+
+def test_get_lightning_still_works_after_refactor(lrepo):
+    from datetime import datetime, timezone
+
+    client = FakeClient()
+    dt = datetime.fromtimestamp((NOW - 3600_000) / 1000, tz=timezone.utc)
+    client.days[(dt.year, dt.month, dt.day)] = [_raw(NOW - 3600_000, 59.30, 18.07)]
+    svc = _service(lrepo, client)
+    resp = svc.get_lightning(59.30, 18.07, "daily", now_ms=NOW)
+    assert sum(p.count for p in resp.points) == 1
