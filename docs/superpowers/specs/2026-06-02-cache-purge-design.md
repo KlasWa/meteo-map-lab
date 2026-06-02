@@ -30,9 +30,13 @@ and left untouched. Re-fetch repopulates on the next request.
    `DELETE` is the correct REST verb over `POST`.
 4. **Purge logic lives on the repositories** (they own the tables), not in the
    route or a new service.
-5. **Frontend:** one "Purge cache" button (purges `all`) with a confirmation
-   step. After success, clear the displayed charts to the default state; do NOT
-   auto-refetch (avoids an unexpected slow lightning cold-fetch).
+5. **Frontend:** a small purge button **next to each chart**, scoped to that
+   chart's data — the cloud chart's button purges `cloud`, the lightning chart's
+   purges `lightning`. Effectively a "purge & refresh": each confirms first, and
+   on success **re-fetches that chart's data** for the current selection (so the
+   chart repopulates with fresh data from SMHI). Lightning's refetch is slow on a
+   cold cache — the confirmation copy warns about this. (The `scope=all` API
+   value exists but is not used by the UI.)
 
 ## Backend
 
@@ -85,17 +89,24 @@ None required (ungated).
 - `frontend/src/lib/api.ts`: `purgeCache(scope: "all" | "cloud" | "lightning" =
   "all"): Promise<Purge>` calling `client.DELETE("/api/cache", { params: {
   query: { scope } } })`; `Purge` type from the regenerated OpenAPI schema.
-- A small **"Purge cache"** button (daisyUI `btn btn-ghost btn-xs` or
-  `btn-outline`, matching the flat theme), placed near the chart controls /
-  bottom of the sidebar so it sits next to the charts.
-- On click: confirm first (a `window.confirm` is acceptable; copy: "Purge all
-  cached SMHI data? The next view will re-fetch from SMHI (lightning is slow to
-  refill)."). On confirm, call `purgeCache("all")`.
-- On success: clear `results` and `lightning` state (charts return to the empty
-  / default state) and show a brief inline status (e.g. a transient "Cache
-  purged" line). Do not auto-refetch. On error: show a short error line.
-- A simple in-flight guard (e.g. a `purging` boolean) disables the button while
-  the request is in flight.
+- A small purge button **next to each chart**, scoped to that chart (daisyUI
+  `btn btn-ghost btn-xs` matching the flat theme, e.g. labelled "Purge" or a
+  trash glyph, in a small header row beside the chart title):
+  - Cloud chart → purges `cloud`.
+  - Lightning chart → purges `lightning`.
+- On click: confirm first (`window.confirm` is acceptable; copy per scope, e.g.
+  "Purge cached cloud data and re-fetch from SMHI?" / "Purge cached lightning
+  data and re-fetch from SMHI? (lightning is slow to refill)"). On confirm, call
+  `purgeCache(scope)`.
+- On success: **re-fetch that chart's data** for the current selection +
+  resolution (so it repopulates with fresh data), reusing the existing fetch
+  paths (`getCloudCover` for the two params / `getLightning`). Show the chart's
+  loading state while refetching. On error (purge or refetch): show a short
+  error line for that chart.
+- A per-chart in-flight guard disables that chart's purge button while its
+  request is running.
+- If no location is selected, the purge buttons are not shown (there are no
+  charts to act on).
 
 ## Testing
 
@@ -105,13 +116,12 @@ None required (ungated).
 - **Endpoint:** `DELETE /api/cache` with `scope=cloud` clears only cloud tables;
   `scope=lightning` clears only lightning tables; `scope=all` (and default)
   clears both; response `deleted` counts match; invalid scope → 422.
-- **Frontend:** typecheck + lint + build; the button calls `purgeCache` and
-  clears the view on success.
+- **Frontend:** typecheck + lint + build; each chart's purge button calls
+  `purgeCache` with the right scope and re-fetches that chart on success.
 
 ## Out of Scope
 
 - No auth/guard, no confirm-token (ungated by decision).
 - No per-station / per-coordinate selective purge (only all/cloud/lightning).
-- No auto-refetch after purge.
 - No `DROP TABLE` / schema reset (rows only; that is what `make reset-db` is
   for).
