@@ -42,3 +42,24 @@ class FetchLog(SQLModel, table=True):
     fetched_at: int  # epoch ms
     covered_from: int | None = None
     covered_to: int | None = None
+
+
+class LightningStrike(SQLModel, table=True):
+    __table_args__ = (
+        UniqueConstraint("ts_utc", "lat", "lon", name="uq_strike_ts_lat_lon"),
+    )
+    id: int | None = Field(default=None, primary_key=True)
+    ts_utc: int = Field(index=True)  # epoch ms, UTC
+    lat: float = Field(index=True)  # indexed for bbox prefilter
+    lon: float
+    peak_current: float
+    cloud_indicator: int
+
+
+class LightningDay(SQLModel, table=True):
+    """Fetch ledger: one row per fetched UTC day (0-strike days included so we
+    do not re-fetch empties)."""
+
+    day_start_ms: int = Field(primary_key=True)  # UTC midnight, epoch ms
+    fetched_at: int  # epoch ms
+    count: int

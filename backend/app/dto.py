@@ -24,3 +24,14 @@ class StationRaw:
     active: bool
     from_ts: int | None = None
     to_ts: int | None = None
+
+
+@dataclass(frozen=True)
+class StrikeRaw:
+    """One parsed lightning strike, storage-agnostic."""
+
+    ts_utc: int  # epoch milliseconds, UTC
+    lat: float
+    lon: float
+    peak_current: float  # kA, sign = polarity
+    cloud_indicator: int  # 0/1: ground vs cloud flash
