@@ -38,6 +38,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/cloud-cover/combined": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Cloud Cover Combined */
+        get: operations["cloud_cover_combined_api_cloud_cover_combined_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/lightning": {
         parameters: {
             query?: never;
@@ -104,7 +121,7 @@ export interface components {
          *     is validated (422 on anything else) and surfaces as an int enum in OpenAPI.
          * @enum {integer}
          */
-        CloudParam: 16 | 29;
+        CloudParam: 16 | 29 | 31 | 33 | 35;
         /** CloudPoint */
         CloudPoint: {
             /** Ts */
@@ -113,6 +130,28 @@ export interface components {
             value: number | null;
             /** Count */
             count: number;
+        };
+        /** CombinedCloudCoverResponse */
+        CombinedCloudCoverResponse: {
+            station: components["schemas"]["StationInfo"];
+            /** Source Params */
+            source_params: number[];
+            /** Resolution */
+            resolution: string;
+            /** Unit */
+            unit: string;
+            /**
+             * Stale
+             * @default false
+             */
+            stale: boolean;
+            /**
+             * Attribution
+             * @default Data: SMHI (CC BY 4.0)
+             */
+            attribution: string;
+            /** Points */
+            points: components["schemas"]["CloudPoint"][];
         };
         /** HTTPValidationError */
         HTTPValidationError: {
@@ -248,6 +287,39 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["CloudCoverResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    cloud_cover_combined_api_cloud_cover_combined_get: {
+        parameters: {
+            query: {
+                lat: number;
+                lon: number;
+                resolution?: "hourly" | "daily" | "monthly";
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CombinedCloudCoverResponse"];
                 };
             };
             /** @description Validation Error */

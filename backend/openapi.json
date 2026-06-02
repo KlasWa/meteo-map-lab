@@ -101,6 +101,72 @@
         }
       }
     },
+    "/api/cloud-cover/combined": {
+      "get": {
+        "tags": [
+          "cloud-cover"
+        ],
+        "summary": "Cloud Cover Combined",
+        "operationId": "cloud_cover_combined_api_cloud_cover_combined_get",
+        "parameters": [
+          {
+            "name": "lat",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "number",
+              "title": "Lat"
+            }
+          },
+          {
+            "name": "lon",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "number",
+              "title": "Lon"
+            }
+          },
+          {
+            "name": "resolution",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "hourly",
+                "daily",
+                "monthly"
+              ],
+              "type": "string",
+              "default": "daily",
+              "title": "Resolution"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CombinedCloudCoverResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/lightning": {
       "get": {
         "tags": [
@@ -267,7 +333,10 @@
         "type": "integer",
         "enum": [
           16,
-          29
+          29,
+          31,
+          33,
+          35
         ],
         "title": "CloudParam",
         "description": "Supported SMHI cloud parameters, as an integer enum so the query value\nis validated (422 on anything else) and surfaces as an int enum in OpenAPI."
@@ -301,6 +370,54 @@
           "count"
         ],
         "title": "CloudPoint"
+      },
+      "CombinedCloudCoverResponse": {
+        "properties": {
+          "station": {
+            "$ref": "#/components/schemas/StationInfo"
+          },
+          "source_params": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array",
+            "title": "Source Params"
+          },
+          "resolution": {
+            "type": "string",
+            "title": "Resolution"
+          },
+          "unit": {
+            "type": "string",
+            "title": "Unit"
+          },
+          "stale": {
+            "type": "boolean",
+            "title": "Stale",
+            "default": false
+          },
+          "attribution": {
+            "type": "string",
+            "title": "Attribution",
+            "default": "Data: SMHI (CC BY 4.0)"
+          },
+          "points": {
+            "items": {
+              "$ref": "#/components/schemas/CloudPoint"
+            },
+            "type": "array",
+            "title": "Points"
+          }
+        },
+        "type": "object",
+        "required": [
+          "station",
+          "source_params",
+          "resolution",
+          "unit",
+          "points"
+        ],
+        "title": "CombinedCloudCoverResponse"
       },
       "HTTPValidationError": {
         "properties": {
