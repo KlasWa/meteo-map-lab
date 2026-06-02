@@ -233,6 +233,113 @@
         }
       }
     },
+    "/api/lightning-risk": {
+      "get": {
+        "tags": [
+          "lightning"
+        ],
+        "summary": "Lightning Risk",
+        "operationId": "lightning_risk_api_lightning_risk_get",
+        "parameters": [
+          {
+            "name": "lat",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "number",
+              "title": "Lat"
+            }
+          },
+          {
+            "name": "lon",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "number",
+              "title": "Lon"
+            }
+          },
+          {
+            "name": "length_m",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "title": "Length M"
+            }
+          },
+          {
+            "name": "width_m",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "title": "Width M"
+            }
+          },
+          {
+            "name": "height_m",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "title": "Height M"
+            }
+          },
+          {
+            "name": "location_factor",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/LocationFactor",
+              "default": 1.0
+            }
+          },
+          {
+            "name": "line_length_m",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "number",
+                  "exclusiveMinimum": 0
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Line Length M"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RiskResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/cache": {
       "delete": {
         "tags": [
@@ -526,6 +633,17 @@
         ],
         "title": "LightningResponse"
       },
+      "LocationFactor": {
+        "type": "number",
+        "enum": [
+          0.25,
+          0.5,
+          1.0,
+          2.0
+        ],
+        "title": "LocationFactor",
+        "description": "IEC 62305 location factor C_D. As a float enum the query value is\nvalidated (422 on anything else) and surfaces as an enum in OpenAPI."
+      },
       "PurgeResponse": {
         "properties": {
           "scope": {
@@ -546,6 +664,132 @@
           "deleted"
         ],
         "title": "PurgeResponse"
+      },
+      "RiskResponse": {
+        "properties": {
+          "lat": {
+            "type": "number",
+            "title": "Lat"
+          },
+          "lon": {
+            "type": "number",
+            "title": "Lon"
+          },
+          "length_m": {
+            "type": "number",
+            "title": "Length M"
+          },
+          "width_m": {
+            "type": "number",
+            "title": "Width M"
+          },
+          "height_m": {
+            "type": "number",
+            "title": "Height M"
+          },
+          "location_factor": {
+            "type": "number",
+            "title": "Location Factor"
+          },
+          "line_length_m": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Line Length M"
+          },
+          "n_g": {
+            "type": "number",
+            "title": "N G"
+          },
+          "radius_km": {
+            "type": "number",
+            "title": "Radius Km"
+          },
+          "span_years": {
+            "type": "number",
+            "title": "Span Years"
+          },
+          "ground_flash_count": {
+            "type": "integer",
+            "title": "Ground Flash Count"
+          },
+          "total_flash_count": {
+            "type": "integer",
+            "title": "Total Flash Count"
+          },
+          "collection_area_km2": {
+            "type": "number",
+            "title": "Collection Area Km2"
+          },
+          "expected_direct_per_year": {
+            "type": "number",
+            "title": "Expected Direct Per Year"
+          },
+          "annual_probability": {
+            "type": "number",
+            "title": "Annual Probability"
+          },
+          "return_period_years": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Return Period Years"
+          },
+          "expected_line_per_year": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expected Line Per Year"
+          },
+          "hazard_band": {
+            "type": "string",
+            "title": "Hazard Band"
+          },
+          "stale": {
+            "type": "boolean",
+            "title": "Stale",
+            "default": false
+          },
+          "attribution": {
+            "type": "string",
+            "title": "Attribution",
+            "default": "Data: SMHI (CC BY 4.0)"
+          }
+        },
+        "type": "object",
+        "required": [
+          "lat",
+          "lon",
+          "length_m",
+          "width_m",
+          "height_m",
+          "location_factor",
+          "n_g",
+          "radius_km",
+          "span_years",
+          "ground_flash_count",
+          "total_flash_count",
+          "collection_area_km2",
+          "expected_direct_per_year",
+          "annual_probability",
+          "hazard_band"
+        ],
+        "title": "RiskResponse"
       },
       "StationInfo": {
         "properties": {

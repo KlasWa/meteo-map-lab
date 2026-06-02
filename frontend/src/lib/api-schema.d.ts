@@ -72,6 +72,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/lightning-risk": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Lightning Risk */
+        get: operations["lightning_risk_api_lightning_risk_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/cache": {
         parameters: {
             query?: never;
@@ -202,6 +219,13 @@ export interface components {
             /** Points */
             points: components["schemas"]["LightningPoint"][];
         };
+        /**
+         * LocationFactor
+         * @description IEC 62305 location factor C_D. As a float enum the query value is
+         *     validated (422 on anything else) and surfaces as an enum in OpenAPI.
+         * @enum {number}
+         */
+        LocationFactor: 0.25 | 0.5 | 1 | 2;
         /** PurgeResponse */
         PurgeResponse: {
             /** Scope */
@@ -210,6 +234,55 @@ export interface components {
             deleted: {
                 [key: string]: number;
             };
+        };
+        /** RiskResponse */
+        RiskResponse: {
+            /** Lat */
+            lat: number;
+            /** Lon */
+            lon: number;
+            /** Length M */
+            length_m: number;
+            /** Width M */
+            width_m: number;
+            /** Height M */
+            height_m: number;
+            /** Location Factor */
+            location_factor: number;
+            /** Line Length M */
+            line_length_m?: number | null;
+            /** N G */
+            n_g: number;
+            /** Radius Km */
+            radius_km: number;
+            /** Span Years */
+            span_years: number;
+            /** Ground Flash Count */
+            ground_flash_count: number;
+            /** Total Flash Count */
+            total_flash_count: number;
+            /** Collection Area Km2 */
+            collection_area_km2: number;
+            /** Expected Direct Per Year */
+            expected_direct_per_year: number;
+            /** Annual Probability */
+            annual_probability: number;
+            /** Return Period Years */
+            return_period_years?: number | null;
+            /** Expected Line Per Year */
+            expected_line_per_year?: number | null;
+            /** Hazard Band */
+            hazard_band: string;
+            /**
+             * Stale
+             * @default false
+             */
+            stale: boolean;
+            /**
+             * Attribution
+             * @default Data: SMHI (CC BY 4.0)
+             */
+            attribution: string;
         };
         /** StationInfo */
         StationInfo: {
@@ -353,6 +426,43 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["LightningResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    lightning_risk_api_lightning_risk_get: {
+        parameters: {
+            query: {
+                lat: number;
+                lon: number;
+                length_m: number;
+                width_m: number;
+                height_m: number;
+                location_factor?: components["schemas"]["LocationFactor"];
+                line_length_m?: number | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RiskResponse"];
                 };
             };
             /** @description Validation Error */
