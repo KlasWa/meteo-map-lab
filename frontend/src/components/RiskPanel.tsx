@@ -3,6 +3,14 @@ import { useState } from "react";
 import { getLightningRisk } from "../lib/api";
 import type { LightningRisk, LocationFactor } from "../lib/api";
 import { formatPercent, formatReturnPeriod } from "../lib/risk-format";
+import {
+  setFactor,
+  setHeight,
+  setLength,
+  setLineLength,
+  setWidth,
+  useRiskInputs,
+} from "../lib/riskInputs";
 
 const LOCATION_OPTIONS: { value: LocationFactor; label: string }[] = [
   { value: 0.25, label: "Surrounded by taller objects / trees" },
@@ -12,14 +20,21 @@ const LOCATION_OPTIONS: { value: LocationFactor; label: string }[] = [
 ];
 
 export function RiskPanel({ lat, lon }: { lat: number; lon: number }) {
-  const [length, setLength] = useState("20");
-  const [width, setWidth] = useState("10");
-  const [height, setHeight] = useState("5");
-  const [lineLength, setLineLength] = useState("");
-  const [factor, setFactor] = useState<LocationFactor>(1);
+  const { length, width, height, lineLength, factor } = useRiskInputs();
   const [result, setResult] = useState<LightningRisk | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+
+  // The computed result is specific to lat/lon; clear it on a location switch so
+  // a stale number is never shown for a new spot. Adjusting state during render
+  // (the React-recommended "reset on prop change" pattern) keeps the inputs,
+  // which live in the store, untouched. See react.dev "You Might Not Need an Effect".
+  const [resultLoc, setResultLoc] = useState({ lat, lon });
+  if (resultLoc.lat !== lat || resultLoc.lon !== lon) {
+    setResultLoc({ lat, lon });
+    setResult(null);
+    setError(null);
+  }
 
   const calculate = async () => {
     const lengthNum = Number(length);
