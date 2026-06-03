@@ -188,7 +188,7 @@ export function RiskPanel({
               </span>
             </div>
             <div className="opacity-70">
-              {formatReturnPeriod(result.return_period_years)}
+              {formatReturnPeriod(result.return_period_years ?? null)}
             </div>
             <div className="flex items-center gap-2">
               <span className="badge badge-sm">{result.hazard_band}</span>
