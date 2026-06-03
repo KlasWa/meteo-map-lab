@@ -4,7 +4,7 @@ import "@maptiler/sdk/dist/maptiler-sdk.css";
 import { GeocodingControl } from "@maptiler/geocoding-control/maptilersdk";
 import type { PickEvent } from "@maptiler/geocoding-control/maptilersdk";
 
-import { rectangleDimensions } from "../lib/geo";
+import { rotatedRectangle } from "../lib/geo";
 import type { LatLon } from "../lib/url-state";
 
 const apiKey = import.meta.env.VITE_MAPTILER_KEY as string | undefined;
@@ -16,14 +16,27 @@ const SELECTED_ZOOM = 18;
 const BOX_SOURCE = "measure-box";
 const EMPTY_FC = { type: "FeatureCollection" as const, features: [] };
 
-function boxFeatureCollection(a: LatLon, b: LatLon) {
-  const ring = [
-    [a.lon, a.lat],
-    [b.lon, a.lat],
-    [b.lon, b.lat],
-    [a.lon, b.lat],
-    [a.lon, a.lat],
-  ];
+function lineFC(a: LatLon, b: LatLon) {
+  return {
+    type: "FeatureCollection" as const,
+    features: [
+      {
+        type: "Feature" as const,
+        geometry: {
+          type: "LineString" as const,
+          coordinates: [
+            [a.lon, a.lat],
+            [b.lon, b.lat],
+          ],
+        },
+        properties: {},
+      },
+    ],
+  };
+}
+
+function polygonFC(corners: readonly LatLon[]) {
+  const ring = [...corners, corners[0]].map((p) => [p.lon, p.lat]);
   return {
     type: "FeatureCollection" as const,
     features: [
@@ -36,17 +49,13 @@ function boxFeatureCollection(a: LatLon, b: LatLon) {
   };
 }
 
-function setBoxData(
+function setMeasureData(
   map: maptilersdk.Map,
-  corners: [LatLon, LatLon] | null,
+  data: ReturnType<typeof lineFC> | ReturnType<typeof polygonFC> | typeof EMPTY_FC,
 ): void {
-  const src = map.getSource(BOX_SOURCE) as
-    | maptilersdk.GeoJSONSource
-    | undefined;
+  const src = map.getSource(BOX_SOURCE) as maptilersdk.GeoJSONSource | undefined;
   if (!src) return;
-  src.setData(
-    corners ? boxFeatureCollection(corners[0], corners[1]) : EMPTY_FC,
-  );
+  src.setData(data);
 }
 
 type Props = {
@@ -75,7 +84,10 @@ export function MapView({
   const drawingRef = useRef(drawing);
   const onRectangleDrawnRef = useRef(onRectangleDrawn);
   const onDrawCancelRef = useRef(onDrawCancel);
-  const firstCornerRef = useRef<LatLon | null>(null);
+  // The two locked corners of the baseline. cornerA set after click 1, cornerB
+  // after click 2; click 3 finalises the rectangle.
+  const cornerARef = useRef<LatLon | null>(null);
+  const cornerBRef = useRef<LatLon | null>(null);
   // Capture the initial selection so we can center the map on URL-restored
   // coordinates without making the init effect depend on `selected`.
   const initialSelectedRef = useRef(selected);
@@ -130,22 +142,27 @@ export function MapView({
 
     map.on("click", (event) => {
       const { lng, lat } = event.lngLat;
+      const pt: LatLon = { lat, lon: lng };
 
-      // Draw mode swallows clicks: first click sets a corner, second finalises.
+      // Draw mode is a three-click rotated rectangle: corner A, then corner B
+      // (locking one side), then the diagonal click that sets the width.
       if (drawingRef.current) {
-        if (!firstCornerRef.current) {
-          firstCornerRef.current = { lat, lon: lng };
+        if (!cornerARef.current) {
+          cornerARef.current = pt;
           return;
         }
-        const { lengthM, widthM } = rectangleDimensions(
-          firstCornerRef.current,
-          {
-            lat,
-            lon: lng,
-          },
+        if (!cornerBRef.current) {
+          cornerBRef.current = pt;
+          return;
+        }
+        const { lengthM, widthM } = rotatedRectangle(
+          cornerARef.current,
+          cornerBRef.current,
+          pt,
         );
-        firstCornerRef.current = null;
-        setBoxData(map, null);
+        cornerARef.current = null;
+        cornerBRef.current = null;
+        setMeasureData(map, EMPTY_FC);
         if (lengthM < 1 && widthM < 1) {
           onDrawCancelRef.current?.();
         } else {
@@ -163,9 +180,20 @@ export function MapView({
     });
 
     map.on("mousemove", (event) => {
-      if (!drawingRef.current || !firstCornerRef.current) return;
-      const { lng, lat } = event.lngLat;
-      setBoxData(map, [firstCornerRef.current, { lat, lon: lng }]);
+      if (!drawingRef.current || !cornerARef.current) return;
+      const cursor: LatLon = { lat: event.lngLat.lat, lon: event.lngLat.lng };
+      if (!cornerBRef.current) {
+        // Phase 1: preview the baseline as a line.
+        setMeasureData(map, lineFC(cornerARef.current, cursor));
+      } else {
+        // Phase 2: preview the rotated rectangle sweeping toward the cursor.
+        const { corners } = rotatedRectangle(
+          cornerARef.current,
+          cornerBRef.current,
+          cursor,
+        );
+        setMeasureData(map, polygonFC(corners));
+      }
     });
 
     const onKeyDown = (e: KeyboardEvent) => {
@@ -183,14 +211,15 @@ export function MapView({
     };
   }, []);
 
-  // Toggle the crosshair cursor and reset any half-drawn box when draw mode
+  // Toggle the crosshair cursor and reset any half-drawn shape when draw mode
   // turns on or off.
   useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
     map.getCanvas().style.cursor = drawing ? "crosshair" : "";
-    firstCornerRef.current = null;
-    setBoxData(map, null);
+    cornerARef.current = null;
+    cornerBRef.current = null;
+    setMeasureData(map, EMPTY_FC);
   }, [drawing]);
 
   // Keep a single marker in sync with the selected coordinate. Reuses the

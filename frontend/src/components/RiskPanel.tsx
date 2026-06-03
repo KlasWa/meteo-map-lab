@@ -131,7 +131,7 @@ export function RiskPanel({
           onClick={onToggleMeasure}
         >
           {measuring
-            ? "Measuring… click two corners (Esc to cancel)"
+            ? "Measuring… click one side (2 points), then the opposite side (Esc to cancel)"
             : "📐 Measure on map"}
         </button>
 
