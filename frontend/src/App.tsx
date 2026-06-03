@@ -20,6 +20,7 @@ import type {
   Resolution,
 } from "./lib/api";
 import { fillLightningGaps } from "./lib/lightning-fill";
+import { setLength, setWidth } from "./lib/riskInputs";
 import { readLatLonFromUrl, writeLatLonToUrl } from "./lib/url-state";
 import type { LatLon } from "./lib/url-state";
 
@@ -125,6 +126,7 @@ export default function App() {
     error: string | null;
   }>({ data: null, error: null });
   const [loading, setLoading] = useState(selection !== null);
+  const [drawing, setDrawing] = useState(false);
 
   useEffect(() => {
     getHealth()
@@ -356,6 +358,13 @@ export default function App() {
           onSelect={handleSelect}
           onMapClick={handleMapClick}
           selected={selection}
+          drawing={drawing}
+          onRectangleDrawn={(lengthM, widthM) => {
+            setLength(String(Math.round(lengthM * 10) / 10));
+            setWidth(String(Math.round(widthM * 10) / 10));
+            setDrawing(false);
+          }}
+          onDrawCancel={() => setDrawing(false)}
         />
       </div>
 
@@ -526,7 +535,12 @@ export default function App() {
               </div>
             </div>
 
-            <RiskPanel lat={selection.lat} lon={selection.lon} />
+            <RiskPanel
+              lat={selection.lat}
+              lon={selection.lon}
+              measuring={drawing}
+              onToggleMeasure={() => setDrawing((d) => !d)}
+            />
 
             {attribution && <p className="text-xs opacity-50">{attribution}</p>}
             {purgeError && <p className="text-xs text-error">{purgeError}</p>}

@@ -19,7 +19,17 @@ const LOCATION_OPTIONS: { value: LocationFactor; label: string }[] = [
   { value: 2, label: "Isolated on a hilltop / promontory" },
 ];
 
-export function RiskPanel({ lat, lon }: { lat: number; lon: number }) {
+export function RiskPanel({
+  lat,
+  lon,
+  measuring,
+  onToggleMeasure,
+}: {
+  lat: number;
+  lon: number;
+  measuring: boolean;
+  onToggleMeasure: () => void;
+}) {
   const { length, width, height, lineLength, factor } = useRiskInputs();
   const [result, setResult] = useState<LightningRisk | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -114,6 +124,16 @@ export function RiskPanel({ lat, lon }: { lat: number; lon: number }) {
             />
           </label>
         </div>
+
+        <button
+          type="button"
+          className={`btn btn-xs ${measuring ? "btn-warning" : "btn-outline"}`}
+          onClick={onToggleMeasure}
+        >
+          {measuring
+            ? "Measuring… click two corners (Esc to cancel)"
+            : "📐 Measure on map"}
+        </button>
 
         <label className="form-control">
           <span className="label-text text-[0.7rem]">Surroundings</span>
