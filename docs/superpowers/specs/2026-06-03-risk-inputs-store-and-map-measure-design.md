@@ -167,5 +167,34 @@ RiskPanel "Measure" button → onToggleMeasure → App setDrawing(true)
 - Touch / mobile drawing (desktop mouse-move driven; taps still set corners but no live
   hover box on touch).
 - Persisting inputs across reloads (explicitly excluded).
-- Drawing non-rectangular or rotated shapes.
+- Non-rectangular shapes.
 - Changing the height / line-length / surroundings via the map.
+
+## Addendum (2026-06-03): rotated rectangle via 3 clicks
+
+The 2-click axis-aligned rectangle is superseded by a **3-click rotated** rectangle so a
+building's actual orientation can be captured:
+
+- **Click 1** sets corner A. **Mousemove** previews a grey line A→cursor.
+- **Click 2** sets corner B, locking one side (the baseline) in length and orientation.
+  **Mousemove** now previews a grey rectangle with side AB pinned, sweeping perpendicular
+  toward the cursor.
+- **Click 3** finalizes: the perpendicular distance from the click to line AB is the other
+  side. Dimensions populate Length/Width and the box clears.
+
+**Geometry** (`geo.ts`): replace `rectangleDimensions` with a pure
+`rotatedRectangle(a, b, c) → { corners: [LatLon, LatLon, LatLon, LatLon]; lengthM; widthM }`.
+It projects the three points to local metres (equirectangular approximation around `a`'s
+latitude — accurate at building scale), computes baseline vector `u = b − a`, perpendicular
+unit `n̂`, signed width `w = (c − a) · n̂`, corners `a, b, b + n̂·w, a + n̂·w` (converted back
+to lat/lon), and returns `lengthM = max(|u|, |w|)`, `widthM = min(|u|, |w|)` (longer→Length,
+shorter→Width, unchanged convention). `haversineMeters` remains a tested utility.
+
+**Interaction** (`MapView.tsx`): the draw state machine tracks two locked corners
+(`cornerA`, `cornerB`); the GeoJSON source holds a LineString during phase 1 and the
+rotated Polygon (`rotatedRectangle(...).corners`) during phase 2. `Esc` / toggling off /
+`drawing=false` clears both corners. A degenerate final rectangle (both dims sub-metre)
+cancels instead of populating.
+
+**`App.tsx`** is unchanged (`onRectangleDrawn(lengthM, widthM)` still feeds the store).
+**`RiskPanel`** button hint updates to reflect three clicks.
