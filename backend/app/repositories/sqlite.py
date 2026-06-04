@@ -1,11 +1,12 @@
 """SQLite-backed CacheRepository using SQLModel. All queries are scoped by
 `param` so multiple SMHI parameters share the same tables without colliding."""
 
+from sqlalchemy import bindparam, text
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.engine import Engine
 from sqlmodel import Session, delete, select
 
-from app.dto import ParsedObs, StationRaw
+from app.dto import AggPoint, ParsedObs, StationRaw
 from app.models import FetchLog, Observation, Station
 from app.repositories.base import CacheRepository
 from app.services.geo import haversine_km
@@ -14,6 +15,25 @@ from app.services.geo import haversine_km
 # (>=999 on any version) so large station lists / archives are inserted in
 # batches rather than one oversized statement.
 _MAX_SQL_VARS = 900
+
+
+def _bucket_expr(resolution: str) -> str:
+    """SQLite expression that maps `ts_utc` (epoch ms) to the start-of-bucket
+    epoch ms for the chosen resolution. Hourly leaves the timestamp alone
+    (input is already hourly); daily/monthly use the `'start of day' / 'start
+    of month'` modifier in UTC."""
+    if resolution == "hourly":
+        return "ts_utc"
+    if resolution == "daily":
+        modifier = "start of day"
+    elif resolution == "monthly":
+        modifier = "start of month"
+    else:
+        raise ValueError(f"unknown resolution: {resolution!r}")
+    return (
+        "CAST(strftime('%s', ts_utc / 1000, 'unixepoch', "
+        f"'{modifier}') AS INTEGER) * 1000"
+    )
 
 
 class SqliteRepository(CacheRepository):
@@ -129,6 +149,88 @@ class SqliteRepository(CacheRepository):
                 .order_by(Observation.ts_utc)
             ).all()
         return [ParsedObs(r.ts_utc, r.value, r.quality) for r in rows]
+
+    def aggregate_observations(
+        self,
+        station_id: int,
+        start_ts: int,
+        end_ts: int,
+        resolution: str,
+        param: int = 16,
+    ) -> list[AggPoint]:
+        bucket = _bucket_expr(resolution)
+        sql = text(
+            f"""
+            SELECT
+                {bucket} AS bucket,
+                ROUND(AVG(value), 2) AS value,
+                COUNT(value) AS cnt
+            FROM observation
+            WHERE param = :param
+              AND station_id = :station_id
+              AND ts_utc >= :start_ts
+              AND ts_utc <= :end_ts
+            GROUP BY bucket
+            ORDER BY bucket
+            """
+        )
+        with Session(self._engine) as s:
+            rows = s.execute(
+                sql,
+                {
+                    "param": param,
+                    "station_id": station_id,
+                    "start_ts": start_ts,
+                    "end_ts": end_ts,
+                },
+            ).all()
+        return [AggPoint(ts=int(b), value=v, count=int(c)) for b, v, c in rows]
+
+    def aggregate_combined_observations(
+        self,
+        station_id: int,
+        start_ts: int,
+        end_ts: int,
+        resolution: str,
+        params: list[int],
+    ) -> list[AggPoint]:
+        if not params:
+            return []
+        # Filter `value IS NOT NULL` inside the per-timestamp MAX so a bucket
+        # never appears for timestamps where every layer was indeterminate —
+        # matching the Python merge_layers_max + aggregate path it replaces.
+        bucket = _bucket_expr(resolution)
+        sql = text(
+            f"""
+            SELECT
+                {bucket} AS bucket,
+                ROUND(AVG(max_value), 2) AS value,
+                COUNT(max_value) AS cnt
+            FROM (
+                SELECT ts_utc, MAX(value) AS max_value
+                FROM observation
+                WHERE param IN :params
+                  AND station_id = :station_id
+                  AND ts_utc >= :start_ts
+                  AND ts_utc <= :end_ts
+                  AND value IS NOT NULL
+                GROUP BY ts_utc
+            ) merged
+            GROUP BY bucket
+            ORDER BY bucket
+            """
+        ).bindparams(bindparam("params", expanding=True))
+        with Session(self._engine) as s:
+            rows = s.execute(
+                sql,
+                {
+                    "params": params,
+                    "station_id": station_id,
+                    "start_ts": start_ts,
+                    "end_ts": end_ts,
+                },
+            ).all()
+        return [AggPoint(ts=int(b), value=v, count=int(c)) for b, v, c in rows]
 
     def get_fetch_log(self, station_id: int, kind: str, param: int = 16) -> FetchLog | None:
         with Session(self._engine) as s:

@@ -27,6 +27,17 @@ class StationRaw:
 
 
 @dataclass(frozen=True)
+class AggPoint:
+    """One aggregated bucket as produced by the repository's SQL-side
+    aggregation. The service maps these to schema CloudPoint without
+    re-shaping them."""
+
+    ts: int  # epoch milliseconds at the start of the bucket, UTC
+    value: float | None  # bucket mean (or hourly raw value); None when empty
+    count: int  # number of non-null observations contributing to the bucket
+
+
+@dataclass(frozen=True)
 class StrikeRaw:
     """One parsed lightning strike, storage-agnostic."""
 

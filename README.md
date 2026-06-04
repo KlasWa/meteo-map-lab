@@ -200,12 +200,40 @@ other endpoints it serves `stale: true` from cache when SMHI is unreachable, or
 
 ## Deployment
 
-A production deployment on GCP (Cloud Run for both services, SQLite preserved
-at runtime and replicated to GCS via Litestream, Terraform-provisioned, deployed
-by GitHub Actions) is designed but not yet fully wired up. The one-time
-bootstrap module that creates the Terraform state bucket and the GitHub Workload
-Identity Federation pool lives in `infra/bootstrap/`; the full design is in
+Production runs on GCP: two Cloud Run services in `europe-north1`, SQLite
+preserved on a tmpfs volume and replicated to GCS via Litestream,
+Terraform-provisioned, deployed by GitHub Actions on push to `main`. The
+one-time bootstrap module (Terraform state bucket + GitHub Workload Identity
+pool) lives in `infra/bootstrap/`; the rest in `infra/main/`. Full design:
 `docs/superpowers/specs/2026-06-01-gcp-cloud-run-litestream-deploy-design.md`.
+
+GitHub repo secrets required for CI: `GCP_PROJECT_ID`, `GCP_WIF_PROVIDER`,
+`GCP_CI_SA_EMAIL`, `MAPTILER_KEY`.
+
+## Monitoring (production)
+
+Quick links — bookmark these for the Cloud Run service dashboards:
+
+- **Metrics** (request rate, p50/p95/p99 latency, CPU, memory, instance count):
+  <https://console.cloud.google.com/run/detail/europe-north1/meteo-map-lab-backend/metrics?project=meteo-map-lab>
+- **Logs** (searchable, filterable by severity):
+  <https://console.cloud.google.com/run/detail/europe-north1/meteo-map-lab-backend/logs?project=meteo-map-lab>
+
+Live-tail the backend's logs in your terminal:
+
+```sh
+make logs-prod            # everything
+make logs-prod-errors     # only ERROR+ (5xx, tracebacks)
+```
+
+Both require `gcloud beta` once: `gcloud components install beta`.
+
+Recommended one-time setup in the GCP Console (free, ~5 min):
+
+- **Uptime check** on `/health` with email alert
+  (Monitoring → Uptime checks). Wakes you up if the backend dies.
+- **Budget alert** at €10/mo (Billing → Budgets & alerts). Catches runaway
+  cost from a stuck container or an unexpected load.
 
 ## Out of scope (later)
 

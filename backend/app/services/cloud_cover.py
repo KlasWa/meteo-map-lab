@@ -8,11 +8,10 @@ import httpx
 from app.repositories.base import CacheRepository
 from app.schemas.cloud_cover import (
     CloudCoverResponse,
+    CloudPoint,
     CombinedCloudCoverResponse,
     StationInfo,
 )
-from app.services.aggregate import aggregate
-from app.services.combine import merge_layers_max
 from app.services.geo import haversine_km
 from app.services.parameters import PARAMETERS
 from app.services.smhi import SMHIClient
@@ -159,14 +158,15 @@ class CloudCoverService:
                 stale = True
 
         # Serve the same window we retain (history_months), so the endpoint
-        # exposes everything the cache holds for the station.
-        obs = self.repo.get_observations(
-            station.id, now_ms - self.history_ms, now_ms, param=param
+        # exposes everything the cache holds for the station. Aggregation is
+        # done in SQL — hydrating ~9k ORM rows per request dominated latency
+        # on Cloud Run's 1 vCPU.
+        agg = self.repo.aggregate_observations(
+            station.id, now_ms - self.history_ms, now_ms, resolution, param=param
         )
-        if not obs and stale:
+        if not agg and stale:
             raise SMHIUnavailable("SMHI is unavailable and no cached data exists for this station.")
 
-        points = aggregate(obs, resolution)
         distance = haversine_km(lat, lon, station.lat, station.lon)
         return CloudCoverResponse(
             station=StationInfo(
@@ -180,7 +180,7 @@ class CloudCoverService:
             resolution=resolution,
             unit=PARAMETERS[param].unit,
             stale=stale,
-            points=points,
+            points=[CloudPoint(ts=p.ts, value=p.value, count=p.count) for p in agg],
         )
 
     def get_combined_low_cloud(
@@ -213,17 +213,14 @@ class CloudCoverService:
                     stale = True
 
         start = now_ms - self.history_ms
-        layer_obs = [
-            self.repo.get_observations(station.id, start, now_ms, param=param)
-            for param in layers
-        ]
-        merged = merge_layers_max(layer_obs)
-        if not merged and stale:
+        agg = self.repo.aggregate_combined_observations(
+            station.id, start, now_ms, resolution, list(layers)
+        )
+        if not agg and stale:
             raise SMHIUnavailable(
                 "SMHI is unavailable and no cached layer data exists for this station."
             )
 
-        points = aggregate(merged, resolution)
         distance = haversine_km(lat, lon, station.lat, station.lon)
         return CombinedCloudCoverResponse(
             station=StationInfo(
@@ -237,5 +234,5 @@ class CloudCoverService:
             resolution=resolution,
             unit="octas",
             stale=stale,
-            points=points,
+            points=[CloudPoint(ts=p.ts, value=p.value, count=p.count) for p in agg],
         )
