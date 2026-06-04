@@ -113,10 +113,9 @@ flowchart TD
     SMHI3 -->|"upsert_observations<br/>(clipped to history_months)"| OB
     SMHI3 -->|"record_fetch"| FL
 
-    Svc --> GO["4 · get_observations(window = history_months)"]
-    GO -->|"read rows ordered by ts_utc"| OB
-    GO --> AGG["5 · aggregate → hourly / daily / monthly"]
-    AGG --> Resp["CloudCoverResponse<br/>station, points, stale"]
+    Svc --> AG["4 · aggregate_observations(window = history_months, resolution)"]
+    AG -->|"GROUP BY bucket; AVG(value); COUNT(value) — done in SQL"| OB
+    AG --> Resp["CloudCoverResponse<br/>station, points, stale"]
 ```
 
 How each table is hit:
@@ -129,8 +128,10 @@ How each table is hit:
   `(param, station_id, ts_utc)` with `value` (native unit) and `quality`.
   **Written** by `upsert_observations` after a recent or archive fetch (step 3),
   using an `ON CONFLICT DO UPDATE` upsert. **Read** in step 4 by
-  `get_observations` for the `history_months` window, then aggregated and
-  returned.
+  `aggregate_observations`, which buckets and means in SQL
+  (`strftime('start of day' / 'start of month', …)` + `GROUP BY`) instead of
+  hydrating rows into Python — keeps cached-read latency in the ~100 ms range
+  on Cloud Run's 1 throttled vCPU.
 - **`FetchLog`** — the fetch ledger keyed by `(param, station_id, kind)`, the
   gatekeeper for every SMHI call. Three `kind`s: `station_list`
   (`station_id=0`), `recent`, and `archive`. **Read** at the top of steps 1
@@ -200,15 +201,42 @@ other endpoints it serves `stale: true` from cache when SMHI is unreachable, or
 
 ## Deployment
 
-A production deployment on GCP (Cloud Run for both services, SQLite preserved
-at runtime and replicated to GCS via Litestream, Terraform-provisioned, deployed
-by GitHub Actions) is designed but not yet fully wired up. The one-time
-bootstrap module that creates the Terraform state bucket and the GitHub Workload
-Identity Federation pool lives in `infra/bootstrap/`; the full design is in
+Production runs on GCP: two Cloud Run services in `europe-north1`, SQLite
+preserved on a tmpfs volume and replicated to GCS via Litestream,
+Terraform-provisioned, deployed by GitHub Actions on push to `main`. The
+one-time bootstrap module (Terraform state bucket + GitHub Workload Identity
+pool) lives in `infra/bootstrap/`; the rest in `infra/main/`. Full design:
 `docs/superpowers/specs/2026-06-01-gcp-cloud-run-litestream-deploy-design.md`.
+
+GitHub repo secrets required for CI: `GCP_PROJECT_ID`, `GCP_WIF_PROVIDER`,
+`GCP_CI_SA_EMAIL`, `MAPTILER_KEY`.
+
+## Monitoring (production)
+
+Quick links — bookmark these for the Cloud Run service dashboards:
+
+- **Metrics** (request rate, p50/p95/p99 latency, CPU, memory, instance count):
+  <https://console.cloud.google.com/run/detail/europe-north1/meteo-map-lab-backend/metrics?project=meteo-map-lab>
+- **Logs** (searchable, filterable by severity):
+  <https://console.cloud.google.com/run/detail/europe-north1/meteo-map-lab-backend/logs?project=meteo-map-lab>
+
+Live-tail the backend's logs in your terminal:
+
+```sh
+make logs-prod            # everything
+make logs-prod-errors     # only ERROR+ (5xx, tracebacks)
+```
+
+Both require `gcloud beta` once: `gcloud components install beta`.
+
+Recommended one-time setup in the GCP Console (free, ~5 min):
+
+- **Uptime check** on `/health` with email alert
+  (Monitoring → Uptime checks). Wakes you up if the backend dies.
+- **Budget alert** at €10/mo (Billing → Budgets & alerts). Catches runaway
+  cost from a stuck container or an unexpected load.
 
 ## Out of scope (later)
 
-CI/CD pipelines (designed in the deploy spec above, not yet implemented),
-horizontal backend scaling (incompatible with single-writer SQLite), a custom
+Horizontal backend scaling (incompatible with single-writer SQLite), a custom
 domain, and AI forecasting.

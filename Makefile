@@ -1,7 +1,7 @@
 COMPOSE = docker compose -f .devcontainer/docker-compose.yml
 COMPOSE_DEBUG = docker compose -f .devcontainer/docker-compose.yml -f .devcontainer/docker-compose.debug.yml
 
-.PHONY: up down rebuild debug reset-db ingest-lightning test gen-schema gen-types gen-api
+.PHONY: up down rebuild debug reset-db ingest-lightning test gen-schema gen-types gen-api logs-prod logs-prod-errors
 
 up:
 	$(COMPOSE) up --build
@@ -50,3 +50,16 @@ gen-api: gen-schema gen-types
 test:
 	$(COMPOSE) exec -T backend uv run pytest
 	$(COMPOSE) exec -T frontend sh -lc "npm run typecheck && npm run lint && npm test"
+
+# Live-tail Cloud Run backend logs from production. Requires `gcloud beta`
+# (install once with `gcloud components install beta`).
+logs-prod:
+	gcloud beta logging tail \
+	  'resource.type="cloud_run_revision" AND resource.labels.service_name="meteo-map-lab-backend"' \
+	  --project=meteo-map-lab
+
+# Same, but only ERROR and above — useful for catching 5xx and tracebacks.
+logs-prod-errors:
+	gcloud beta logging tail \
+	  'resource.type="cloud_run_revision" AND resource.labels.service_name="meteo-map-lab-backend" AND severity>=ERROR' \
+	  --project=meteo-map-lab
