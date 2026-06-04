@@ -1,0 +1,23 @@
+{
+  // To debug the Python API:
+  //   1. Run `make debug` in a terminal (starts the backend under debugpy;
+  //      it waits for the debugger before serving requests).
+  //   2. Pick "Attach to API (Docker)" here and press F5.
+  //   3. Set breakpoints in backend/app/**; hit the API and they'll trigger.
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Attach to API (Docker)",
+      "type": "debugpy",
+      "request": "attach",
+      "connect": { "host": "localhost", "port": 5678 },
+      "pathMappings": [
+        {
+          "localRoot": "${workspaceFolder}/backend",
+          "remoteRoot": "/workspace/backend"
+        }
+      ],
+      "justMyCode": false
+    }
+  ]
+}

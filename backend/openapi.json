@@ -1,0 +1,869 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "meteo-map-lab API",
+    "version": "0.1.0"
+  },
+  "paths": {
+    "/health": {
+      "get": {
+        "tags": [
+          "system"
+        ],
+        "summary": "Health",
+        "operationId": "health_health_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/cloud-cover": {
+      "get": {
+        "tags": [
+          "cloud-cover"
+        ],
+        "summary": "Cloud Cover",
+        "operationId": "cloud_cover_api_cloud_cover_get",
+        "parameters": [
+          {
+            "name": "lat",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "number",
+              "title": "Lat"
+            }
+          },
+          {
+            "name": "lon",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "number",
+              "title": "Lon"
+            }
+          },
+          {
+            "name": "resolution",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "hourly",
+                "daily",
+                "monthly"
+              ],
+              "type": "string",
+              "default": "daily",
+              "title": "Resolution"
+            }
+          },
+          {
+            "name": "param",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/CloudParam",
+              "default": 16
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CloudCoverResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/cloud-cover/combined": {
+      "get": {
+        "tags": [
+          "cloud-cover"
+        ],
+        "summary": "Cloud Cover Combined",
+        "operationId": "cloud_cover_combined_api_cloud_cover_combined_get",
+        "parameters": [
+          {
+            "name": "lat",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "number",
+              "title": "Lat"
+            }
+          },
+          {
+            "name": "lon",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "number",
+              "title": "Lon"
+            }
+          },
+          {
+            "name": "resolution",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "hourly",
+                "daily",
+                "monthly"
+              ],
+              "type": "string",
+              "default": "daily",
+              "title": "Resolution"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CombinedCloudCoverResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/lightning": {
+      "get": {
+        "tags": [
+          "lightning"
+        ],
+        "summary": "Lightning",
+        "operationId": "lightning_api_lightning_get",
+        "parameters": [
+          {
+            "name": "lat",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "number",
+              "title": "Lat"
+            }
+          },
+          {
+            "name": "lon",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "number",
+              "title": "Lon"
+            }
+          },
+          {
+            "name": "resolution",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "hourly",
+                "daily",
+                "monthly"
+              ],
+              "type": "string",
+              "default": "daily",
+              "title": "Resolution"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LightningResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/lightning-risk": {
+      "get": {
+        "tags": [
+          "lightning"
+        ],
+        "summary": "Lightning Risk",
+        "operationId": "lightning_risk_api_lightning_risk_get",
+        "parameters": [
+          {
+            "name": "lat",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "number",
+              "title": "Lat"
+            }
+          },
+          {
+            "name": "lon",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "number",
+              "title": "Lon"
+            }
+          },
+          {
+            "name": "length_m",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "title": "Length M"
+            }
+          },
+          {
+            "name": "width_m",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "title": "Width M"
+            }
+          },
+          {
+            "name": "height_m",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "title": "Height M"
+            }
+          },
+          {
+            "name": "location_factor",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/LocationFactor",
+              "default": 1.0
+            }
+          },
+          {
+            "name": "line_length_m",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "number",
+                  "exclusiveMinimum": 0
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Line Length M"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RiskResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/cache": {
+      "delete": {
+        "tags": [
+          "cache"
+        ],
+        "summary": "Purge Cache",
+        "operationId": "purge_cache_api_cache_delete",
+        "parameters": [
+          {
+            "name": "scope",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "all",
+                "cloud",
+                "lightning"
+              ],
+              "type": "string",
+              "default": "all",
+              "title": "Scope"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PurgeResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "CloudCoverResponse": {
+        "properties": {
+          "station": {
+            "$ref": "#/components/schemas/StationInfo"
+          },
+          "param": {
+            "type": "integer",
+            "title": "Param"
+          },
+          "resolution": {
+            "type": "string",
+            "title": "Resolution"
+          },
+          "unit": {
+            "type": "string",
+            "title": "Unit"
+          },
+          "stale": {
+            "type": "boolean",
+            "title": "Stale",
+            "default": false
+          },
+          "attribution": {
+            "type": "string",
+            "title": "Attribution",
+            "default": "Data: SMHI (CC BY 4.0)"
+          },
+          "points": {
+            "items": {
+              "$ref": "#/components/schemas/CloudPoint"
+            },
+            "type": "array",
+            "title": "Points"
+          }
+        },
+        "type": "object",
+        "required": [
+          "station",
+          "param",
+          "resolution",
+          "unit",
+          "points"
+        ],
+        "title": "CloudCoverResponse"
+      },
+      "CloudParam": {
+        "type": "integer",
+        "enum": [
+          16,
+          29,
+          31,
+          33,
+          35
+        ],
+        "title": "CloudParam",
+        "description": "Supported SMHI cloud parameters, as an integer enum so the query value\nis validated (422 on anything else) and surfaces as an int enum in OpenAPI."
+      },
+      "CloudPoint": {
+        "properties": {
+          "ts": {
+            "type": "integer",
+            "title": "Ts"
+          },
+          "value": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Value"
+          },
+          "count": {
+            "type": "integer",
+            "title": "Count"
+          }
+        },
+        "type": "object",
+        "required": [
+          "ts",
+          "value",
+          "count"
+        ],
+        "title": "CloudPoint"
+      },
+      "CombinedCloudCoverResponse": {
+        "properties": {
+          "station": {
+            "$ref": "#/components/schemas/StationInfo"
+          },
+          "source_params": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array",
+            "title": "Source Params"
+          },
+          "resolution": {
+            "type": "string",
+            "title": "Resolution"
+          },
+          "unit": {
+            "type": "string",
+            "title": "Unit"
+          },
+          "stale": {
+            "type": "boolean",
+            "title": "Stale",
+            "default": false
+          },
+          "attribution": {
+            "type": "string",
+            "title": "Attribution",
+            "default": "Data: SMHI (CC BY 4.0)"
+          },
+          "points": {
+            "items": {
+              "$ref": "#/components/schemas/CloudPoint"
+            },
+            "type": "array",
+            "title": "Points"
+          }
+        },
+        "type": "object",
+        "required": [
+          "station",
+          "source_params",
+          "resolution",
+          "unit",
+          "points"
+        ],
+        "title": "CombinedCloudCoverResponse"
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "type": "array",
+            "title": "Detail"
+          }
+        },
+        "type": "object",
+        "title": "HTTPValidationError"
+      },
+      "HealthResponse": {
+        "properties": {
+          "status": {
+            "type": "string",
+            "title": "Status"
+          }
+        },
+        "type": "object",
+        "required": [
+          "status"
+        ],
+        "title": "HealthResponse"
+      },
+      "LightningCenter": {
+        "properties": {
+          "lat": {
+            "type": "number",
+            "title": "Lat"
+          },
+          "lon": {
+            "type": "number",
+            "title": "Lon"
+          }
+        },
+        "type": "object",
+        "required": [
+          "lat",
+          "lon"
+        ],
+        "title": "LightningCenter"
+      },
+      "LightningPoint": {
+        "properties": {
+          "ts": {
+            "type": "integer",
+            "title": "Ts"
+          },
+          "count": {
+            "type": "integer",
+            "title": "Count"
+          }
+        },
+        "type": "object",
+        "required": [
+          "ts",
+          "count"
+        ],
+        "title": "LightningPoint"
+      },
+      "LightningResponse": {
+        "properties": {
+          "center": {
+            "$ref": "#/components/schemas/LightningCenter"
+          },
+          "radius_km": {
+            "type": "number",
+            "title": "Radius Km"
+          },
+          "resolution": {
+            "type": "string",
+            "title": "Resolution"
+          },
+          "unit": {
+            "type": "string",
+            "title": "Unit",
+            "default": "strikes"
+          },
+          "stale": {
+            "type": "boolean",
+            "title": "Stale",
+            "default": false
+          },
+          "attribution": {
+            "type": "string",
+            "title": "Attribution",
+            "default": "Data: SMHI (CC BY 4.0)"
+          },
+          "points": {
+            "items": {
+              "$ref": "#/components/schemas/LightningPoint"
+            },
+            "type": "array",
+            "title": "Points"
+          }
+        },
+        "type": "object",
+        "required": [
+          "center",
+          "radius_km",
+          "resolution",
+          "points"
+        ],
+        "title": "LightningResponse"
+      },
+      "LocationFactor": {
+        "type": "number",
+        "enum": [
+          0.25,
+          0.5,
+          1.0,
+          2.0
+        ],
+        "title": "LocationFactor",
+        "description": "IEC 62305 location factor C_D. As a float enum the query value is\nvalidated (422 on anything else) and surfaces as an enum in OpenAPI."
+      },
+      "PurgeResponse": {
+        "properties": {
+          "scope": {
+            "type": "string",
+            "title": "Scope"
+          },
+          "deleted": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "type": "object",
+            "title": "Deleted"
+          }
+        },
+        "type": "object",
+        "required": [
+          "scope",
+          "deleted"
+        ],
+        "title": "PurgeResponse"
+      },
+      "RiskResponse": {
+        "properties": {
+          "lat": {
+            "type": "number",
+            "title": "Lat"
+          },
+          "lon": {
+            "type": "number",
+            "title": "Lon"
+          },
+          "length_m": {
+            "type": "number",
+            "title": "Length M"
+          },
+          "width_m": {
+            "type": "number",
+            "title": "Width M"
+          },
+          "height_m": {
+            "type": "number",
+            "title": "Height M"
+          },
+          "location_factor": {
+            "type": "number",
+            "title": "Location Factor"
+          },
+          "line_length_m": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Line Length M"
+          },
+          "n_g": {
+            "type": "number",
+            "title": "N G"
+          },
+          "radius_km": {
+            "type": "number",
+            "title": "Radius Km"
+          },
+          "span_years": {
+            "type": "number",
+            "title": "Span Years"
+          },
+          "ground_flash_count": {
+            "type": "integer",
+            "title": "Ground Flash Count"
+          },
+          "total_flash_count": {
+            "type": "integer",
+            "title": "Total Flash Count"
+          },
+          "collection_area_km2": {
+            "type": "number",
+            "title": "Collection Area Km2"
+          },
+          "expected_direct_per_year": {
+            "type": "number",
+            "title": "Expected Direct Per Year"
+          },
+          "annual_probability": {
+            "type": "number",
+            "title": "Annual Probability"
+          },
+          "return_period_years": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Return Period Years"
+          },
+          "expected_line_per_year": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expected Line Per Year"
+          },
+          "hazard_band": {
+            "type": "string",
+            "title": "Hazard Band"
+          },
+          "stale": {
+            "type": "boolean",
+            "title": "Stale",
+            "default": false
+          },
+          "attribution": {
+            "type": "string",
+            "title": "Attribution",
+            "default": "Data: SMHI (CC BY 4.0)"
+          }
+        },
+        "type": "object",
+        "required": [
+          "lat",
+          "lon",
+          "length_m",
+          "width_m",
+          "height_m",
+          "location_factor",
+          "n_g",
+          "radius_km",
+          "span_years",
+          "ground_flash_count",
+          "total_flash_count",
+          "collection_area_km2",
+          "expected_direct_per_year",
+          "annual_probability",
+          "hazard_band"
+        ],
+        "title": "RiskResponse"
+      },
+      "StationInfo": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "lat": {
+            "type": "number",
+            "title": "Lat"
+          },
+          "lon": {
+            "type": "number",
+            "title": "Lon"
+          },
+          "distance_km": {
+            "type": "number",
+            "title": "Distance Km"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "lat",
+          "lon",
+          "distance_km"
+        ],
+        "title": "StationInfo"
+      },
+      "ValidationError": {
+        "properties": {
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Location"
+          },
+          "msg": {
+            "type": "string",
+            "title": "Message"
+          },
+          "type": {
+            "type": "string",
+            "title": "Error Type"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "ctx": {
+            "type": "object",
+            "title": "Context"
+          }
+        },
+        "type": "object",
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError"
+      }
+    }
+  }
+}

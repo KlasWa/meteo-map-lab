@@ -1,0 +1,28 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+*.db
+*.db-wal
+*.db-shm
+*.db-journal
+
+# Env files (committed: *.example only)
+.env
+.env.*
+!.env.example
+
+# Node / frontend build
+node_modules/
+dist/
+
+# OS / editor
+.DS_Store
+
+# Terraform
+**/.terraform/
+**/*.tfstate
+**/*.tfstate.*
+**/terraform.tfvars
+!**/terraform.tfvars.example
+infra/bootstrap/bootstrap-outputs.json

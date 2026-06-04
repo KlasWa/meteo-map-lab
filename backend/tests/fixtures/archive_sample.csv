@@ -1,0 +1,15 @@
+Stationsnamn;Stationsnummer;Stationsnät;Mäthöjd (meter över marken)
+Arvika A;92410;SMHIs stationsnät;0.0
+
+Parameternamn;Beskrivning;Enhet
+Total molnmängd;momentanvärde, 1 gång/tim;procent
+
+Tidsperiod (fr.o.m);Tidsperiod (t.o.m);Höjd (meter över havet);Latitud (decimalgrader);Longitud (decimalgrader)
+1996-04-01 00:00:00;2026-05-01 13:20:22;65.758;59.6743;12.6354
+
+Datum;Tid (UTC);Total molnmängd;Kvalitet;;Tidsutsnitt:
+2025-01-01;00:00:00;100;G;;Kvalitetskontrollerade historiska data (utom de senaste 3 mån)
+2025-01-01;01:00:00;75;Y;;
+2025-01-01;02:00:00;113;G;;
+2025-01-01;03:00:00;;G;;
+2025-01-01;04:00:00;0;G;;

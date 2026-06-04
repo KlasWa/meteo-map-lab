@@ -1,0 +1,7 @@
+# Build output, deps, and caches
+dist
+node_modules
+.pytest_cache
+
+# Generated from the backend OpenAPI schema (do not hand-format)
+src/lib/api-schema.d.ts

@@ -1,0 +1,30 @@
+@import "tailwindcss";
+@plugin "daisyui" {
+  themes: silk --default;
+}
+
+/* Utilitarian grotesk for UI text; data stays in font-mono where set. */
+@theme {
+  --font-sans: "Space Grotesk", ui-sans-serif, system-ui, sans-serif;
+}
+
+/* Bauhaus look on top of silk's palette: square corners, no 3D depth or
+   grain, and a single bold accent (red) — closer to usgraphics.com. */
+:root,
+[data-theme="silk"] {
+  --radius-box: 0rem;
+  --radius-field: 0rem;
+  --radius-selector: 0.25rem;
+  --depth: 0;
+  --noise: 0;
+  --color-primary: oklch(57% 0.21 27);
+  --color-primary-content: oklch(98% 0 0);
+}
+
+/* Keep #root filling the viewport so the map layout can use flex/height. */
+html,
+body,
+#root {
+  height: 100%;
+  overflow: hidden;
+}

@@ -1,0 +1,77 @@
+{
+  "folders": [{ "path": "." }],
+  "settings": {
+    "python.defaultInterpreterPath": "${workspaceFolder}/backend/.venv/bin/python",
+    "pylint.cwd": "${workspaceFolder}/backend",
+    "pylint.args": ["--rcfile=${workspaceFolder}/backend/pyproject.toml"],
+    "pylint.importStrategy": "fromEnvironment",
+    "ruff.configuration": "${workspaceFolder}/backend/pyproject.toml",
+    "ruff.importStrategy": "fromEnvironment",
+    "[python]": {
+      "editor.defaultFormatter": "charliermarsh.ruff",
+      "editor.formatOnSave": true,
+      "editor.codeActionsOnSave": {
+        "source.fixAll.ruff": "explicit",
+        "source.organizeImports.ruff": "explicit"
+      }
+    },
+    "[typescript]": {
+      "editor.formatOnSave": true,
+      "editor.codeActionsOnSave": {
+        "source.fixAll.eslint": "explicit"
+      }
+    },
+    "[typescriptreact]": {
+      "editor.formatOnSave": true,
+      "editor.codeActionsOnSave": {
+        "source.fixAll.eslint": "explicit"
+      }
+    },
+    "eslint.workingDirectories": [
+      { "directory": "frontend", "changeProcessCWD": true }
+    ],
+    "typescript.tsdk": "frontend/node_modules/typescript/lib",
+    "makefile.configureOnOpen": false,
+    "files.exclude": {
+      "**/__pycache__": true,
+      "**/.pytest_cache": true,
+      "**/.ruff_cache": true,
+      "**/.venv": true
+    },
+    "search.exclude": {
+      "**/node_modules": true,
+      "**/.venv": true,
+      "**/dist": true,
+      "**/openapi.json": true
+    }
+  },
+  "extensions": {
+    "recommendations": [
+      "ms-python.python",
+      "ms-python.debugpy",
+      "ms-python.pylint",
+      "charliermarsh.ruff",
+      "dbaeumer.vscode-eslint",
+      "bradlc.vscode-tailwindcss",
+      "ms-azuretools.vscode-docker"
+    ]
+  },
+  "launch": {
+    "version": "0.2.0",
+    "configurations": [
+      {
+        "name": "Attach to API (Docker)",
+        "type": "debugpy",
+        "request": "attach",
+        "connect": { "host": "localhost", "port": 5678 },
+        "pathMappings": [
+          {
+            "localRoot": "${workspaceFolder}/backend",
+            "remoteRoot": "/workspace/backend"
+          }
+        ],
+        "justMyCode": false
+      }
+    ]
+  }
+}

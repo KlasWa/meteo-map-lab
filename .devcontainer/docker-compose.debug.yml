@@ -1,0 +1,18 @@
+# Debug override for the backend: run uvicorn under debugpy so VS Code can
+# attach and hit breakpoints. Used via `make debug` (compose with two -f files).
+#
+#   debugpy listens on 5678 (mapped to the host).
+#   --wait-for-client pauses startup until VS Code attaches, so breakpoints in
+#   import-time / startup code are honored.
+#   NOTE: --reload is intentionally omitted here. Uvicorn's reloader runs the
+#   app in a CHILD process, but debugpy attaches to the parent, so breakpoints
+#   in app code would not be hit. Debug mode trades hot-reload for reliable
+#   breakpoints; use plain `make up` when you want hot-reload.
+services:
+  backend:
+    ports:
+      - "8000:8000"
+      - "5678:5678"
+    command: >
+      uv run python -m debugpy --listen 0.0.0.0:5678 --wait-for-client
+      -m uvicorn app.main:app --host 0.0.0.0 --port 8000
