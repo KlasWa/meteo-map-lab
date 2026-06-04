@@ -41,7 +41,7 @@ driven by the same resolution + period controls.
 
 ## Data Model
 
-Same `elvy_map.db` (regenerable cache; recreate with `make reset-db`). New
+Same `meteo_map_lab.db` (regenerable cache; recreate with `make reset-db`). New
 tables, separate from the cloud tables.
 
 - **`LightningStrike`**

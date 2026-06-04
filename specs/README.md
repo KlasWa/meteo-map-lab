@@ -1,6 +1,6 @@
 # specs/
 
-Feature specifications for elvy-map. One file per feature or decision,
+Feature specifications for meteo-map-lab. One file per feature or decision,
 written **before** implementation.
 
 Suggested workflow:

@@ -270,7 +270,7 @@ Modify `backend/app/core/config.py`. The current `Settings` body is:
 
 ```python
     cors_origins: list[str] = ["http://localhost:5173"]
-    database_url: str = "sqlite:///./elvy_map.db"
+    database_url: str = "sqlite:///./meteo_map_lab.db"
     smhi_base_url: str = "https://opendata-download-metobs.smhi.se/api"
 ```
 
@@ -278,7 +278,7 @@ Add four fields below `smhi_base_url`:
 
 ```python
     cors_origins: list[str] = ["http://localhost:5173"]
-    database_url: str = "sqlite:///./elvy_map.db"
+    database_url: str = "sqlite:///./meteo_map_lab.db"
     smhi_base_url: str = "https://opendata-download-metobs.smhi.se/api"
     cloud_cover_param: int = 16  # SMHI "Total molnmängd", percent
     history_months: int = 13  # how far back to retain/serve

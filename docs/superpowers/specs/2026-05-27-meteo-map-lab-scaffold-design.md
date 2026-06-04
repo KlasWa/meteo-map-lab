@@ -1,4 +1,4 @@
-# elvy-map — Project Scaffold Design
+# meteo-map-lab — Project Scaffold Design
 
 **Date:** 2026-05-27
 **Status:** Approved (design)
@@ -6,7 +6,7 @@
 
 ## Purpose
 
-Stand up a runnable full-stack skeleton for elvy-map so feature work (real SMHI
+Stand up a runnable full-stack skeleton for meteo-map-lab so feature work (real SMHI
 integration, charts, forecasting) has a working foundation. This spec covers
 **only** the scaffold: project structure, tooling, dev container, and a
 thin end-to-end vertical slice that proves the frontend and backend talk to each
@@ -62,7 +62,7 @@ Source brief: `README-instructions.md`. Overall architecture: `ai-docs/PLANNING.
 ## Repository Layout
 
 ```
-elvy-map/
+meteo-map-lab/
 ├── .devcontainer/
 │   ├── devcontainer.json          # opens the compose stack, installs deps
 │   └── docker-compose.yml         # backend + frontend services

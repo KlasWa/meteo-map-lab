@@ -28,7 +28,7 @@ rebuild:
 # stale on-disk schema otherwise causes "no such column" errors. The DB is a
 # regenerable cache (re-fetched from SMHI on demand), so dropping it is safe.
 reset-db:
-	rm -f backend/elvy_map.db backend/elvy_map.db-wal backend/elvy_map.db-shm
+	rm -f backend/meteo_map_lab.db backend/meteo_map_lab.db-wal backend/meteo_map_lab.db-shm
 	$(COMPOSE) restart backend
 
 # Warm the lightning cache (fetches up to ~12 months of national day-files).
@@ -49,4 +49,4 @@ gen-api: gen-schema gen-types
 # Run backend tests and frontend type-check + lint.
 test:
 	$(COMPOSE) exec -T backend uv run pytest
-	$(COMPOSE) exec -T frontend sh -lc "npm run typecheck && npm run lint"
+	$(COMPOSE) exec -T frontend sh -lc "npm run typecheck && npm run lint && npm test"

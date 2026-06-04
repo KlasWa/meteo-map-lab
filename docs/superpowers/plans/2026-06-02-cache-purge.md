@@ -293,8 +293,8 @@ Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>"
 - [ ] **Step 1: Regenerate the OpenAPI schema + types** (runs locally):
 
 ```bash
-cd /Users/klaswallden/elvy-map/backend && uv run python scripts/export_openapi.py
-cd /Users/klaswallden/elvy-map/frontend && npm run gen:types
+cd /Users/klaswallden/meteo-map-lab/backend && uv run python scripts/export_openapi.py
+cd /Users/klaswallden/meteo-map-lab/frontend && npm run gen:types
 ```
 Confirm `backend/openapi.json` and `frontend/src/lib/api-schema.d.ts` now contain `/api/cache` with a `delete` operation (grep for `cache`).
 
@@ -323,7 +323,7 @@ Expected: PASS.
 - [ ] **Step 4: Commit** (adjust generated paths to what `git status` shows):
 
 ```bash
-cd /Users/klaswallden/elvy-map
+cd /Users/klaswallden/meteo-map-lab
 git add frontend/src/lib/api.ts frontend/src/lib/api-schema.d.ts backend/openapi.json
 git commit -m "feat(frontend): purgeCache API client + regen types
 
@@ -581,13 +581,13 @@ Then, just before the closing `</aside>` (after the api-status indicator div), a
 
 - [ ] **Step 9: Verify**
 
-Run: `cd /Users/klaswallden/elvy-map/frontend && npm run typecheck && npm run lint && npm run build && npm run format:check`
+Run: `cd /Users/klaswallden/meteo-map-lab/frontend && npm run typecheck && npm run lint && npm run build && npm run format:check`
 Expected: all PASS (pre-existing >500 kB chunk warning is fine).
 
 - [ ] **Step 10: Commit**
 
 ```bash
-cd /Users/klaswallden/elvy-map
+cd /Users/klaswallden/meteo-map-lab
 git add frontend/src/App.tsx
 git commit -m "feat(frontend): per-chart purge & refresh buttons with confirm modal
 

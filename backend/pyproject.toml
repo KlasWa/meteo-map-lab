@@ -1,7 +1,7 @@
 [project]
-name = "elvy-map-backend"
+name = "meteo-map-lab-backend"
 version = "0.1.0"
-description = "elvy-map FastAPI backend"
+description = "meteo-map-lab FastAPI backend"
 requires-python = ">=3.12"
 dependencies = [
     "fastapi>=0.115",

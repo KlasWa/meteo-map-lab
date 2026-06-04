@@ -1497,22 +1497,7 @@ export default function App() {
 
       <aside className="flex w-96 flex-col gap-4 overflow-y-auto bg-base-200 p-4">
         <header className="flex items-center justify-between">
-          <h1 className="text-xl font-bold">elvy-map</h1>
-          <span
-            className={`badge badge-sm ${
-              backendOk === null
-                ? "badge-ghost"
-                : backendOk
-                  ? "badge-success"
-                  : "badge-error"
-            }`}
-          >
-            {backendOk === null
-              ? "checking…"
-              : backendOk
-                ? "backend ok"
-                : "backend down"}
-          </span>
+          <h1 className="text-xl font-bold">meteo-map-lab</h1>
         </header>
 
         {!selection ? (

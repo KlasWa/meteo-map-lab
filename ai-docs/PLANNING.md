@@ -1,11 +1,11 @@
-# PLANNING.md — elvy-map
+# PLANNING.md — meteo-map-lab
 
 > Project planning and architecture reference for AI-agent collaboration.
 > Source brief: [`README-instructions.md`](../README-instructions.md)
 
 ## Purpose & Goals
 
-elvy-map is a web application that uses SMHI (Swedish Meteorological and
+meteo-map-lab is a web application that uses SMHI (Swedish Meteorological and
 Hydrological Institute) data to analyze and visualize **cloud coverage** and
 **lightning-strike probability** for a chosen geographic location.
 
@@ -55,7 +55,7 @@ historical data so repeated queries don't re-hit SMHI.
 | Backend      | FastAPI (Python 3.12), Uvicorn             | httpx for SMHI calls, pydantic-settings.       |
 | API client   | openapi-typescript + openapi-fetch         | Typed client generated from backend OpenAPI.   |
 | Data source  | SMHI Open Data APIs                         | Meteorological observations + historical data. |
-| Data store   | SQLite via SQLModel (SQLAlchemy)           | `sqlite:///./elvy_map.db`; Postgres later.     |
+| Data store   | SQLite via SQLModel (SQLAlchemy)           | `sqlite:///./meteo_map_lab.db`; Postgres later.     |
 | Package mgmt | uv (backend), npm (frontend)               | `uv.lock` / `package-lock.json` committed.     |
 | Dev env      | Docker Compose + devcontainer, Makefile    | frontend + backend services, helper targets.   |
 | Tooling      | Ruff + pylint + pytest (backend), ESLint + tsc (FE) | Lint/format and tests.                 |

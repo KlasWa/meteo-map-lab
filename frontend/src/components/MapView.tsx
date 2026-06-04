@@ -51,9 +51,14 @@ function polygonFC(corners: readonly LatLon[]) {
 
 function setMeasureData(
   map: maptilersdk.Map,
-  data: ReturnType<typeof lineFC> | ReturnType<typeof polygonFC> | typeof EMPTY_FC,
+  data:
+    | ReturnType<typeof lineFC>
+    | ReturnType<typeof polygonFC>
+    | typeof EMPTY_FC,
 ): void {
-  const src = map.getSource(BOX_SOURCE) as maptilersdk.GeoJSONSource | undefined;
+  const src = map.getSource(BOX_SOURCE) as
+    | maptilersdk.GeoJSONSource
+    | undefined;
   if (!src) return;
   src.setData(data);
 }
@@ -121,13 +126,13 @@ export function MapView({
         id: "measure-box-fill",
         type: "fill",
         source: BOX_SOURCE,
-        paint: { "fill-color": "#9ca3af", "fill-opacity": 0.25 },
+        paint: { "fill-color": "#f59e0b", "fill-opacity": 0.35 },
       });
       map.addLayer({
         id: "measure-box-line",
         type: "line",
         source: BOX_SOURCE,
-        paint: { "line-color": "#6b7280", "line-width": 2 },
+        paint: { "line-color": "#ea580c", "line-width": 2 },
       });
     });
 

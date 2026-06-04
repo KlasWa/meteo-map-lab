@@ -1,6 +1,6 @@
 ---
 name: check-backend-logs
-description: Use when checking the elvy-map backend for runtime errors — after starting the stack with make up/debug, when the frontend shows a backend/500 error, after a backend code or model change, or when asked to "check the backend logs". Scans the backend container's docker compose logs for tracebacks, HTTP 5xx, and SQL errors.
+description: Use when checking the meteo-map-lab backend for runtime errors — after starting the stack with make up/debug, when the frontend shows a backend/500 error, after a backend code or model change, or when asked to "check the backend logs". Scans the backend container's docker compose logs for tracebacks, HTTP 5xx, and SQL errors.
 ---
 
 # Check Backend Logs

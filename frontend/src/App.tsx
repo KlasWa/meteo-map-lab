@@ -96,9 +96,9 @@ const PARAMS: {
   },
   {
     id: 29,
-    label: "Cloud amount — layer max (octas)",
+    label: "Cloud amount, max octas layer",
     description:
-      "Max octas across SMHI cloud layers 29/31/33/35 (lowest to highest). SMHI reports layers cumulatively, so the max equals total low/mid cloud cover. Octas 0–8; codes 9–15 (obscured / not observed) are dropped.",
+      "Max octas across SMHI cloud layers 29/31/33/35. SMHI reports layers cumulatively, so the max equals total low/mid cloud cover. Octas 0–8; codes 9–15 (obscured / not observed) are dropped.",
     color: "oklch(57% 0.21 27)",
     axis: "yOctas",
   },
@@ -350,10 +350,10 @@ export default function App() {
   );
 
   return (
-    <div className="flex h-screen flex-col lg:flex-row">
+    <div className="flex h-screen min-h-0 flex-col overflow-hidden lg:flex-row">
       {/* Map: full width and ~30vh tall on mobile (on top), fills the left
           column on large screens. */}
-      <div className="relative h-[30vh] w-full lg:h-auto lg:w-auto lg:flex-1">
+      <div className="relative h-[30vh] w-full shrink-0 lg:h-auto lg:w-auto lg:min-h-0 lg:flex-1 lg:shrink">
         <MapView
           onSelect={handleSelect}
           onMapClick={handleMapClick}
@@ -368,184 +368,195 @@ export default function App() {
         />
       </div>
 
-      {/* Aside: below the map on mobile, on the right (sized to fit the chart)
-          on large screens. Scrolls internally so it never exceeds the screen. */}
-      <aside className="flex w-full flex-1 flex-col gap-4 overflow-y-auto border-t border-base-300 bg-base-200 p-4 lg:w-[640px] lg:max-w-full lg:flex-none lg:border-l lg:border-t-0">
-        {!selection ? (
-          <div className="rounded-box border border-dashed border-base-300 p-4 text-sm opacity-70">
-            Search an address or click anywhere on the map to compare total and
-            low cloud cover for the past year.
-          </div>
-        ) : (
-          <>
-            <div className="card card-compact border border-base-300 bg-base-100">
-              <div className="card-body gap-2">
-                <div className="flex items-center justify-between gap-2">
-                  <h2 className="card-title text-base opacity-60">
-                    {selection.lat.toFixed(5)}, {selection.lon.toFixed(5)}
-                  </h2>
-                  <button
-                    type="button"
-                    onClick={handleClear}
-                    className="btn btn-ghost btn-xs btn-circle"
-                    aria-label="Clear selection"
-                  >
-                    ✕
-                  </button>
-                </div>
-                <div className="space-y-1">
-                  {PARAMS.map((p) => {
-                    const res = results[p.id];
-                    return (
-                      <div key={p.id}>
-                        <div className="flex items-center gap-2 text-xs">
-                          <span
-                            className="inline-block h-2 w-2 shrink-0 rounded-full"
-                            style={{ backgroundColor: p.color }}
-                          />
-                          <span className="font-semibold">{p.label}:</span>
-                          {res?.data ? (
-                            <span className="flex items-center gap-1 opacity-70">
-                              <span>
-                                {res.data.station.name} (
-                                {res.data.station.distance_km} km)
-                              </span>
-                              <svg
-                                viewBox="0 0 24 24"
-                                className="h-3 w-3 shrink-0"
-                                style={{
-                                  transform: `rotate(${bearingDeg(
-                                    selection.lat,
-                                    selection.lon,
-                                    res.data.station.lat,
-                                    res.data.station.lon,
-                                  )}deg)`,
-                                }}
-                                role="img"
-                                aria-label="Direction to station"
-                              >
-                                <path
-                                  d="M12 2 L18 13 L13 13 L13 22 L11 22 L11 13 L6 13 Z"
-                                  fill="currentColor"
-                                />
-                              </svg>
-                            </span>
-                          ) : res?.error ? (
-                            <span className="opacity-50">{res.error}</span>
-                          ) : (
-                            <span className="opacity-50">…</span>
-                          )}
-                        </div>
-                        <p className="ml-4 text-[0.7rem] leading-snug opacity-50">
-                          {p.description}
-                        </p>
-                      </div>
-                    );
-                  })}
-                </div>
-                {anyStale && (
-                  <span className="badge badge-warning badge-sm self-start">
-                    showing cached data
-                  </span>
-                )}
+      {/* Aside: below the map on mobile, on the right on large screens. An inner
+          scroll region keeps overflow off the flex column wrapper (required for
+          overflow-y-auto to work). */}
+      <aside className="flex min-h-0 w-full flex-1 flex-col overflow-hidden border-t border-base-300 bg-base-200 lg:h-full lg:w-[640px] lg:max-w-full lg:flex-none lg:border-l lg:border-t-0">
+        <div className="min-h-0 flex-1 overflow-y-auto overscroll-y-contain p-4">
+          <div className="flex flex-col gap-4">
+            {!selection ? (
+              <div className="rounded-box border border-dashed border-base-300 p-4 text-sm opacity-70">
+                Search an address or click anywhere on the map to fetch data and
+                start.
               </div>
-            </div>
-
-            <div className="flex items-center justify-between gap-2">
-              <div role="tablist" className="tabs tabs-border">
-                {RESOLUTIONS.map((r) => (
-                  <button
-                    key={r}
-                    role="tab"
-                    className={`tab ${r === resolution ? "tab-active" : ""}`}
-                    onClick={() => changeResolution(r)}
-                  >
-                    {r}
-                  </button>
-                ))}
-              </div>
-
-              <select
-                className="select select-xs w-auto"
-                aria-label="Time period"
-                value={periodLabel}
-                onChange={(e) => setPeriodLabel(e.target.value)}
-              >
-                {periodOptions.map((p) => (
-                  <option key={p.label} value={p.label}>
-                    {p.label}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div className="flex items-center justify-between">
-              <h3 className="text-xs font-semibold opacity-70">Cloud cover</h3>
-              {purgeButton("cloud", "Purge & refresh cloud data")}
-            </div>
-            <div className="relative mx-auto aspect-[2/1] w-full max-w-[600px]">
-              {cloudBusy && (
-                <div className="absolute inset-0 flex items-center justify-center">
-                  <span className="loading loading-spinner loading-lg" />
-                </div>
-              )}
-              {!cloudBusy && series.length > 0 && (
-                <CloudCoverChart series={series} resolution={resolution} />
-              )}
-              {!cloudBusy && series.length === 0 && (
-                <p className="text-sm opacity-70">
-                  No cloud-cover data for this location and range.
-                </p>
-              )}
-            </div>
-
-            <div className="mt-2">
-              <div className="mb-1 flex items-center justify-between">
-                <h3 className="text-xs font-semibold opacity-70">
-                  Lightning — strikes within {lightning.data?.radius_km ?? 50}{" "}
-                  km
-                </h3>
-                {purgeButton("lightning", "Purge & refresh lightning data")}
-              </div>
-              <div className="relative mx-auto aspect-[3/1] w-full max-w-[600px]">
-                {lightningBusy && (
-                  <div className="absolute inset-0 flex items-center justify-center">
-                    <span className="loading loading-spinner loading-lg" />
+            ) : (
+              <>
+                <div className="card card-compact border border-base-300 bg-base-100">
+                  <div className="card-body gap-2 p-4">
+                    <div className="flex items-center justify-between gap-2">
+                      <h2 className="card-title text-base opacity-60">
+                        {selection.lat.toFixed(5)}, {selection.lon.toFixed(5)}
+                      </h2>
+                      <button
+                        type="button"
+                        onClick={handleClear}
+                        className="btn btn-ghost btn-xs btn-circle"
+                        aria-label="Clear selection"
+                      >
+                        ✕
+                      </button>
+                    </div>
+                    <div className="space-y-1">
+                      {PARAMS.map((p) => {
+                        const res = results[p.id];
+                        return (
+                          <div key={p.id}>
+                            <div className="flex items-center gap-2 text-xs">
+                              <span
+                                className="inline-block h-2 w-2 shrink-0 rounded-full"
+                                style={{ backgroundColor: p.color }}
+                              />
+                              <span className="font-semibold">{p.label}:</span>
+                              {res?.data ? (
+                                <span className="flex items-center gap-1 opacity-70">
+                                  <span>
+                                    {res.data.station.name} (
+                                    {res.data.station.distance_km} km)
+                                  </span>
+                                  <svg
+                                    viewBox="0 0 24 24"
+                                    className="h-3 w-3 shrink-0"
+                                    style={{
+                                      transform: `rotate(${bearingDeg(
+                                        selection.lat,
+                                        selection.lon,
+                                        res.data.station.lat,
+                                        res.data.station.lon,
+                                      )}deg)`,
+                                    }}
+                                    role="img"
+                                    aria-label="Direction to station"
+                                  >
+                                    <path
+                                      d="M12 2 L18 13 L13 13 L13 22 L11 22 L11 13 L6 13 Z"
+                                      fill="currentColor"
+                                    />
+                                  </svg>
+                                </span>
+                              ) : res?.error ? (
+                                <span className="opacity-50">{res.error}</span>
+                              ) : (
+                                <span className="opacity-50">…</span>
+                              )}
+                            </div>
+                            <p className="ml-4 text-[0.7rem] leading-snug opacity-50">
+                              {p.description}
+                            </p>
+                          </div>
+                        );
+                      })}
+                    </div>
+                    {anyStale && (
+                      <span className="badge badge-warning badge-sm self-start">
+                        showing cached data
+                      </span>
+                    )}
                   </div>
-                )}
-                {!lightningBusy &&
-                  lightning.data &&
-                  lightningInWindow.length > 0 && (
-                    <LightningChart
-                      data={{ ...lightning.data, points: lightningFilled }}
-                      resolution={resolution}
-                      color="oklch(57% 0.21 27)"
-                    />
+                </div>
+
+                <div className="flex items-center justify-between gap-2">
+                  <div role="tablist" className="tabs tabs-border">
+                    {RESOLUTIONS.map((r) => (
+                      <button
+                        key={r}
+                        role="tab"
+                        className={`tab ${r === resolution ? "tab-active" : ""}`}
+                        onClick={() => changeResolution(r)}
+                      >
+                        {r}
+                      </button>
+                    ))}
+                  </div>
+
+                  <select
+                    className="select select-xs w-auto"
+                    aria-label="Time period"
+                    value={periodLabel}
+                    onChange={(e) => setPeriodLabel(e.target.value)}
+                  >
+                    {periodOptions.map((p) => (
+                      <option key={p.label} value={p.label}>
+                        {p.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="flex items-center justify-between">
+                  <h3 className="text-xs font-semibold opacity-70">
+                    Cloud cover
+                  </h3>
+                  {purgeButton("cloud", "Purge & refresh cloud data")}
+                </div>
+                <div className="relative mx-auto aspect-2/1 w-full max-w-600">
+                  {cloudBusy && (
+                    <div className="absolute inset-0 flex items-center justify-center">
+                      <span className="loading loading-spinner loading-lg" />
+                    </div>
                   )}
-                {!lightningBusy &&
-                  lightning.data &&
-                  lightningInWindow.length === 0 && (
+                  {!cloudBusy && series.length > 0 && (
+                    <CloudCoverChart series={series} resolution={resolution} />
+                  )}
+                  {!cloudBusy && series.length === 0 && (
                     <p className="text-sm opacity-70">
-                      No lightning recorded in this period.
+                      No cloud-cover data for this location and range.
                     </p>
                   )}
-                {!lightningBusy && !lightning.data && lightning.error && (
-                  <p className="text-sm opacity-50">{lightning.error}</p>
+                </div>
+
+                <div className="mt-2">
+                  <div className="mb-1 flex items-center justify-between">
+                    <h3 className="text-xs font-semibold opacity-70">
+                      Lightning, strikes within{" "}
+                      {lightning.data?.radius_km ?? 50} km
+                    </h3>
+                    {purgeButton("lightning", "Purge & refresh lightning data")}
+                  </div>
+                  <div className="relative mx-auto aspect-3/1 w-full max-w-600">
+                    {lightningBusy && (
+                      <div className="absolute inset-0 flex items-center justify-center">
+                        <span className="loading loading-spinner loading-lg" />
+                      </div>
+                    )}
+                    {!lightningBusy &&
+                      lightning.data &&
+                      lightningInWindow.length > 0 && (
+                        <LightningChart
+                          data={{ ...lightning.data, points: lightningFilled }}
+                          resolution={resolution}
+                          color="oklch(57% 0.21 27)"
+                        />
+                      )}
+                    {!lightningBusy &&
+                      lightning.data &&
+                      lightningInWindow.length === 0 && (
+                        <p className="text-sm opacity-70">
+                          No lightning recorded in this period.
+                        </p>
+                      )}
+                    {!lightningBusy && !lightning.data && lightning.error && (
+                      <p className="text-sm opacity-50">{lightning.error}</p>
+                    )}
+                  </div>
+                </div>
+
+                <RiskPanel
+                  lat={selection.lat}
+                  lon={selection.lon}
+                  measuring={drawing}
+                  onToggleMeasure={() => setDrawing((d) => !d)}
+                />
+
+                {attribution && (
+                  <p className="text-xs opacity-50">{attribution}</p>
                 )}
-              </div>
-            </div>
-
-            <RiskPanel
-              lat={selection.lat}
-              lon={selection.lon}
-              measuring={drawing}
-              onToggleMeasure={() => setDrawing((d) => !d)}
-            />
-
-            {attribution && <p className="text-xs opacity-50">{attribution}</p>}
-            {purgeError && <p className="text-xs text-error">{purgeError}</p>}
-          </>
-        )}
+                {purgeError && (
+                  <p className="text-xs text-error">{purgeError}</p>
+                )}
+              </>
+            )}
+          </div>
+        </div>
 
         <dialog ref={purgeModalRef} className="modal">
           <div className="modal-box">
@@ -581,7 +592,7 @@ export default function App() {
           </form>
         </dialog>
 
-        <div className="justify-end flex items-center gap-1.5 text-xs opacity-60 mt-auto">
+        <div className="flex shrink-0 items-center justify-end gap-1.5 border-t border-base-300 px-4 py-2 text-xs opacity-60">
           <span
             className={`inline-block h-1.5 w-1.5 rounded-full ${
               backendOk === null

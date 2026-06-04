@@ -6,7 +6,7 @@
 
 ## 1. Scope & Goal
 
-A backend **cloud-coverage ingest + cache layer** for elvy-map. Given a
+A backend **cloud-coverage ingest + cache layer** for meteo-map-lab. Given a
 coordinate, it resolves the nearest SMHI station, lazily fetches and caches
 ~13 months of hourly cloud cover, and serves it at hourly / daily / monthly
 resolution.

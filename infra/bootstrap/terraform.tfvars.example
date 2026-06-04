@@ -1,0 +1,5 @@
+// Copy this file to terraform.tfvars (gitignored) and fill in your values.
+
+project_id  = "meteo-map-lab-prod"
+region      = "europe-north1"
+github_repo = "KlasWa/meteo-map-lab"

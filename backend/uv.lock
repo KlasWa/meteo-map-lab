@@ -103,7 +103,7 @@ wheels = [
 ]
 
 [[package]]
-name = "elvy-map-backend"
+name = "meteo-map-lab-backend"
 version = "0.1.0"
 source = { virtual = "." }
 dependencies = [

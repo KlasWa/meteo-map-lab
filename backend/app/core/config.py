@@ -5,7 +5,7 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
     cors_origins: list[str] = ["http://localhost:5173"]
-    database_url: str = "sqlite:///./elvy_map.db"
+    database_url: str = "sqlite:///./meteo_map_lab.db"
     smhi_base_url: str = "https://opendata-download-metobs.smhi.se/api"
     cloud_cover_param: int = 16  # default parameter for the endpoint
     cloud_cover_params: list[int] = [16, 29, 31, 33, 35]  # supported parameters
