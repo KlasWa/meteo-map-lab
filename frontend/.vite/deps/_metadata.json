@@ -1,0 +1,70 @@
+{
+  "hash": "14927c98",
+  "configHash": "c0e59475",
+  "lockfileHash": "41b737b0",
+  "browserHash": "d5ea1c15",
+  "optimized": {
+    "@maptiler/geocoding-control/maptilersdk": {
+      "src": "../../node_modules/@maptiler/geocoding-control/dist/maptilersdk.js",
+      "file": "@maptiler_geocoding-control_maptilersdk.js",
+      "fileHash": "62e078c2",
+      "needsInterop": false
+    },
+    "@maptiler/sdk": {
+      "src": "../../node_modules/@maptiler/sdk/dist/maptiler-sdk.mjs",
+      "file": "@maptiler_sdk.js",
+      "fileHash": "fb070523",
+      "needsInterop": false
+    },
+    "chart.js": {
+      "src": "../../node_modules/chart.js/dist/chart.js",
+      "file": "chart__js.js",
+      "fileHash": "667237ef",
+      "needsInterop": false
+    },
+    "openapi-fetch": {
+      "src": "../../node_modules/openapi-fetch/dist/index.mjs",
+      "file": "openapi-fetch.js",
+      "fileHash": "b6afc6da",
+      "needsInterop": false
+    },
+    "react-chartjs-2": {
+      "src": "../../node_modules/react-chartjs-2/dist/index.js",
+      "file": "react-chartjs-2.js",
+      "fileHash": "f29e6e4d",
+      "needsInterop": false
+    },
+    "react-dom/client": {
+      "src": "../../node_modules/react-dom/client.js",
+      "file": "react-dom_client.js",
+      "fileHash": "6d0532fe",
+      "needsInterop": true
+    },
+    "react": {
+      "src": "../../node_modules/react/index.js",
+      "file": "react.js",
+      "fileHash": "b51f88b5",
+      "needsInterop": true
+    },
+    "react/jsx-dev-runtime": {
+      "src": "../../node_modules/react/jsx-dev-runtime.js",
+      "file": "react_jsx-dev-runtime.js",
+      "fileHash": "d1dc736d",
+      "needsInterop": true
+    }
+  },
+  "chunks": {
+    "chart-dyYLUvJI": {
+      "file": "chart-dyYLUvJI.js",
+      "isDynamicEntry": false
+    },
+    "chunk-FDOR9p9I": {
+      "file": "chunk-FDOR9p9I.js",
+      "isDynamicEntry": false
+    },
+    "maptiler-sdk-DlqjlFu0": {
+      "file": "maptiler-sdk-DlqjlFu0.js",
+      "isDynamicEntry": false
+    }
+  }
+}

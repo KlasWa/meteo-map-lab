@@ -1,0 +1,15 @@
+// Copy to terraform.tfvars (gitignored) for local applies.
+// CI passes these via -var flags from the deploy workflow, so this file is
+// only needed when applying locally.
+
+project_id = "meteo-map-lab"
+region     = "europe-north1"
+
+// Leave the image_* defaults alone for the first apply. Once the deploy
+// workflow has pushed real images to Artifact Registry, CI overrides them
+// with concrete :SHA tags.
+//
+// image_backend  = "europe-north1-docker.pkg.dev/meteo-map-lab/meteo-map-lab/backend:abc1234"
+// image_frontend = "europe-north1-docker.pkg.dev/meteo-map-lab/meteo-map-lab/frontend:abc1234"
+//
+// cors_origins   = "https://meteo-map-lab-frontend-xxxx-ez.a.run.app"

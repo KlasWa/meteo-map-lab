@@ -1,0 +1,111 @@
+# PR workflow: backend tests, frontend type/lint, and a terraform plan that
+# gets posted as a sticky PR comment. Authenticates to GCP via Workload
+# Identity Federation (no JSON keys). The deploy workflow handles applies on
+# push-to-main; this workflow is plan-only.
+
+name: test
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+      - run: uv sync --frozen
+      - run: uv run pytest
+
+  frontend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm run lint
+
+  terraform-plan:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write       # for WIF
+      contents: read
+      pull-requests: write  # for the sticky plan comment
+    defaults:
+      run:
+        working-directory: infra/main
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WIF_PROVIDER }}
+          service_account: ${{ secrets.GCP_CI_SA_EMAIL }}
+
+      - uses: google-github-actions/setup-gcloud@v2
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ~1.15
+
+      # CORS_ORIGINS is owned by the deploy workflow (it gets set to the FE
+      # URL after the FE service is created). Looking up the live value here
+      # keeps PR plans noise-free. Image vars are ignored via
+      # `ignore_changes` in the cloud_run_*.tf files so no lookup needed.
+      - id: cors
+        shell: bash
+        run: |
+          set -euo pipefail
+          CORS=$(gcloud run services describe meteo-map-lab-backend \
+                   --region=europe-north1 \
+                   --project="${{ secrets.GCP_PROJECT_ID }}" \
+                   --format=json 2>/dev/null \
+                 | jq -r '.template.containers[0].env[]? | select(.name=="CORS_ORIGINS") | .value' \
+                 || echo "")
+          echo "value=$CORS" >> "$GITHUB_OUTPUT"
+
+      - run: terraform init -no-color -input=false
+
+      - id: plan
+        run: |
+          terraform plan -no-color -input=false -lock-timeout=2m \
+            -var=project_id=${{ secrets.GCP_PROJECT_ID }} \
+            -var="cors_origins=${{ steps.cors.outputs.value }}"
+
+      - uses: marocchino/sticky-pull-request-comment@v2
+        if: always()
+        with:
+          header: terraform-plan
+          message: |
+            ### Terraform plan — `infra/main/`
+
+            <details>
+            <summary>Click to expand the plan</summary>
+
+            ```hcl
+            ${{ steps.plan.outputs.stdout }}
+            ```
+
+            </details>
+
+            *Image diffs are intentionally hidden — the deploy workflow owns the live image tag via `gcloud run deploy`.*

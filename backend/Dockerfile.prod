@@ -1,0 +1,29 @@
+# Multi-stage production image for the backend Cloud Run service.
+# Stage 1 installs Python deps into /opt/venv via uv.
+# Stage 2 assembles the runtime: venv + Litestream binary + app code +
+# entrypoint that restores the SQLite replica from GCS and runs uvicorn
+# under Litestream's `replicate -exec` wrapper.
+#
+# Build context = repo root:
+#   docker build -t backend:test -f backend/Dockerfile.prod .
+
+FROM python:3.12-slim AS deps
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
+ENV UV_PROJECT_ENVIRONMENT=/opt/venv \
+    UV_COMPILE_BYTECODE=1
+WORKDIR /app
+COPY backend/pyproject.toml backend/uv.lock ./
+RUN uv sync --frozen --no-dev
+
+FROM python:3.12-slim
+COPY --from=deps /opt/venv /opt/venv
+COPY --from=litestream/litestream:0.3.13 /usr/local/bin/litestream /usr/local/bin/litestream
+ENV PATH="/opt/venv/bin:${PATH}"
+WORKDIR /app
+COPY backend/app ./app
+COPY backend/litestream.yml /etc/litestream.yml
+COPY backend/entrypoint.sh /usr/local/bin/entrypoint.sh
+RUN chmod +x /usr/local/bin/entrypoint.sh \
+ && mkdir -p /data
+EXPOSE 8000
+ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]

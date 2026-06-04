@@ -37,6 +37,30 @@ Uvicorn `--reload` and Vite HMR — no rebuild needed for normal code changes.
 > Not set up for VS Code "Reopen in Container" — the runtime images are slim
 > (no git, no editor tooling). Edit on the host instead.
 
+The lightning endpoints (`/api/lightning`, `/api/lightning-risk`) lazily fetch
+national strike day-files from SMHI on first request and return 503 until the
+cache holds data. To warm it up front (up to ~12 months):
+
+```bash
+make ingest-lightning
+```
+
+## API
+
+Interactive docs are at http://localhost:8000/docs. The endpoints:
+
+| Method & path | Purpose |
+| --- | --- |
+| `GET /health` | Liveness and backend status. |
+| `GET /api/cloud-cover` | Cloud-cover series for one `param` (16 = total %, 29 = low cloud octas) at `resolution` = hourly/daily/monthly. |
+| `GET /api/cloud-cover/combined` | Total % and low-cloud octas together, for the dual-axis chart. |
+| `GET /api/lightning` | Strike counts near a point over the retained window. |
+| `GET /api/lightning-risk` | IEC 62305 direct-strike probability for a structure (see below). |
+| `DELETE /api/cache?scope=all\|cloud\|lightning` | Purge cached SMHI data; returns per-table delete counts. |
+
+All data endpoints take `lat` and `lon`, serve `stale: true` from cache when
+SMHI is unreachable, and 503 when nothing is cached.
+
 ## Tests
 
 With the stack running (`make up` in another terminal):
@@ -174,6 +198,17 @@ other endpoints it serves `stale: true` from cache when SMHI is unreachable, or
   `nearest_max_km` default of 250 km). Param 29 (low cloud, octas) has denser
   coverage.
 
+## Deployment
+
+A production deployment on GCP (Cloud Run for both services, SQLite preserved
+at runtime and replicated to GCS via Litestream, Terraform-provisioned, deployed
+by GitHub Actions) is designed but not yet fully wired up. The one-time
+bootstrap module that creates the Terraform state bucket and the GitHub Workload
+Identity Federation pool lives in `infra/bootstrap/`; the full design is in
+`docs/superpowers/specs/2026-06-01-gcp-cloud-run-litestream-deploy-design.md`.
+
 ## Out of scope (later)
 
-Real SMHI integration, charts, Terraform/GCP deploy, CI/CD, AI forecasting.
+CI/CD pipelines (designed in the deploy spec above, not yet implemented),
+horizontal backend scaling (incompatible with single-writer SQLite), a custom
+domain, and AI forecasting.
