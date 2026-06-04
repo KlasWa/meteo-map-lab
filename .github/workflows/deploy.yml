@@ -91,9 +91,19 @@ jobs:
       - id: be
         name: Capture backend URL
         run: |
+          set -euo pipefail
+          # gcloud's --format='value(uri)' returns empty for Cloud Run v2 in
+          # recent SDK versions (the field is exposed differently between v1
+          # and v2 paths). JSON + jq with fallbacks is reliable across both.
           URL=$(gcloud run services describe "$BE_SERVICE" \
-                  --region="$REGION" --project="$PROJECT" --format='value(uri)')
+                  --region="$REGION" --project="$PROJECT" --format=json \
+                | jq -r '.uri // .url // .status.url // empty')
+          if [ -z "$URL" ]; then
+            echo "::error::Backend URL came back empty; check service exists in $REGION"
+            exit 1
+          fi
           echo "url=$URL" >> "$GITHUB_OUTPUT"
+          echo "Backend URL: $URL"
 
       - id: maptiler
         name: Fetch MapTiler key from Secret Manager
@@ -126,9 +136,16 @@ jobs:
       - id: fe
         name: Capture frontend URL
         run: |
+          set -euo pipefail
           URL=$(gcloud run services describe "$FE_SERVICE" \
-                  --region="$REGION" --project="$PROJECT" --format='value(uri)')
+                  --region="$REGION" --project="$PROJECT" --format=json \
+                | jq -r '.uri // .url // .status.url // empty')
+          if [ -z "$URL" ]; then
+            echo "::error::Frontend URL came back empty; check service exists in $REGION"
+            exit 1
+          fi
           echo "url=$URL" >> "$GITHUB_OUTPUT"
+          echo "Frontend URL: $URL"
 
       - name: Terraform apply (pass B — set CORS to live frontend URL)
         working-directory: infra/main
