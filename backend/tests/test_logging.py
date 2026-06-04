@@ -4,7 +4,7 @@ fields. Plain-text fallback for local dev is covered by the configure path."""
 import json
 import logging
 
-from app.core.logging import JsonFormatter, configure_logging
+from app.core.logging import JsonFormatter, TextFormatter, configure_logging
 
 
 def _format(record: logging.LogRecord) -> dict:
@@ -78,4 +78,37 @@ def test_configure_logging_swaps_handlers(monkeypatch):
     # Restore plain formatter to avoid leaking JSON into subsequent tests' captures.
     monkeypatch.delenv("K_SERVICE", raising=False)
     configure_logging()
-    assert not isinstance(root.handlers[0].formatter, JsonFormatter)
+    assert isinstance(root.handlers[0].formatter, TextFormatter)
+
+
+def test_text_formatter_appends_extras_inline():
+    record = logging.LogRecord(
+        name="app.request", level=logging.INFO, pathname=__file__, lineno=1,
+        msg="request_complete", args=(), exc_info=None,
+    )
+    record.path = "/api/cloud-cover"
+    record.status = 200
+    record.duration_ms = 12.3
+
+    out = TextFormatter().format(record)
+    assert out.startswith("INFO app.request: request_complete | ")
+    # Order of extras isn't asserted (dict order), but each key must appear once.
+    for token in ("path=/api/cloud-cover", "status=200", "duration_ms=12.3"):
+        assert token in out
+
+
+def test_text_formatter_without_extras_is_just_the_message():
+    record = logging.LogRecord(
+        name="app", level=logging.INFO, pathname=__file__, lineno=1,
+        msg="plain", args=(), exc_info=None,
+    )
+    assert TextFormatter().format(record) == "INFO app: plain"
+
+
+def test_configure_logging_silences_noisy_library_loggers():
+    configure_logging()
+    # httpx logs every request at INFO by default — duplicates app.outbound.
+    # uvicorn.access logs every response at INFO — duplicates app.request.
+    # Both must be quiet enough that only WARNING+ reaches the handler.
+    for name in ("httpx", "httpcore", "uvicorn.access"):
+        assert logging.getLogger(name).level == logging.WARNING
