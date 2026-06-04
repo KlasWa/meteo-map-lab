@@ -5,6 +5,7 @@ is passed per call (default 16) so one client serves every cloud parameter."""
 
 import httpx
 
+from app.core.http import make_logged_client
 from app.dto import StationRaw
 
 _API_VERSION = "1.0"
@@ -19,7 +20,12 @@ class SMHIClient:
         transport: httpx.BaseTransport | None = None,
     ) -> None:
         self.base_url = base_url
-        self._client = httpx.Client(base_url=base_url, timeout=timeout, transport=transport)
+        self._client = make_logged_client(
+            service="smhi-metobs",
+            base_url=base_url,
+            timeout=timeout,
+            transport=transport,
+        )
 
     def fetch_station_list(self, param: int = _DEFAULT_PARAM) -> list[StationRaw]:
         r = self._client.get(f"/version/{_API_VERSION}/parameter/{param}.json")

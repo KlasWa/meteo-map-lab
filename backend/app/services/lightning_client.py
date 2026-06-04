@@ -2,6 +2,8 @@
 
 import httpx
 
+from app.core.http import make_logged_client
+
 _DEFAULT_TIMEOUT = 30.0
 
 
@@ -13,7 +15,12 @@ class LightningClient:
         transport: httpx.BaseTransport | None = None,
     ) -> None:
         self.base_url = base_url
-        self._client = httpx.Client(base_url=base_url, timeout=timeout, transport=transport)
+        self._client = make_logged_client(
+            service="smhi-lightning",
+            base_url=base_url,
+            timeout=timeout,
+            transport=transport,
+        )
 
     def fetch_day(self, year: int, month: int, day: int) -> dict:
         """Return the day's payload dict ({"values": [...]}). A 404 means no

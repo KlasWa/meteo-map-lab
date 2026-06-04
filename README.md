@@ -235,6 +235,23 @@ Recommended one-time setup in the GCP Console (free, ~5 min):
 - **Budget alert** at €10/mo (Billing → Budgets & alerts). Catches runaway
   cost from a stuck container or an unexpected load.
 
+### Tracking outbound calls to SMHI
+
+The backend logs one structured line per outbound HTTP call (both the cloud
+and lightning clients). In the Cloud Logging console:
+
+```
+jsonPayload.message="outbound_request"                         # all outbound calls
+jsonPayload.message="outbound_request" AND jsonPayload.service="smhi-metobs"
+jsonPayload.message="outbound_request" AND jsonPayload.status>=400
+jsonPayload.message="outbound_request" AND jsonPayload.duration_ms>2000
+```
+
+For a count over time, create a **logs-based counter metric** (Logging →
+Logs-based metrics → Create metric) using the same filter, then chart it in
+Cloud Monitoring or alert on a threshold (e.g. "more than 100 outbound
+calls in 5 min" — usually means the cache emptied).
+
 ## Out of scope (later)
 
 CI/CD pipelines (designed in the deploy spec above, not yet implemented),
