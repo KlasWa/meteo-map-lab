@@ -14,14 +14,23 @@ async def lifespan(app: FastAPI):
     yield
 
 
-app = FastAPI(title="meteo-map-lab API", version="0.1.0", lifespan=lifespan)
+def build_app(cors_origins: str) -> FastAPI:
+    """Build the FastAPI app with a comma-separated CORS allowlist. An empty
+    `cors_origins` yields no allowed origins — used on first deploy before the
+    frontend URL is known. Factored out so tests can drive different inputs."""
+    api = FastAPI(title="meteo-map-lab API", version="0.1.0", lifespan=lifespan)
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=settings.cors_origins,
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+    origins = [o.strip() for o in cors_origins.split(",") if o.strip()]
+    api.add_middleware(
+        CORSMiddleware,
+        allow_origins=origins,
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
 
-app.include_router(router)
+    api.include_router(router)
+    return api
+
+
+app = build_app(settings.cors_origins)

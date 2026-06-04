@@ -1,0 +1,19 @@
+# Litestream config — env-driven so the same image works for any project.
+# LITESTREAM_BUCKET and LITESTREAM_PATH are set as Cloud Run env vars
+# in infra/main/cloud_run_backend.tf.
+#
+# Authentication: Litestream picks up Application Default Credentials from
+# the Cloud Run service account (no key file needed).
+
+dbs:
+  - path: /data/meteo_map_lab.db
+    replicas:
+      - type: gcs
+        bucket: ${LITESTREAM_BUCKET}
+        path: ${LITESTREAM_PATH}
+        # How long Litestream itself keeps WAL frames in GCS. After that the
+        # bucket lifecycle rules in infra/main/storage.tf take over for
+        # archived versions.
+        retention: 168h
+        snapshot-interval: 24h
+        sync-interval: 1s

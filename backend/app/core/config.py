@@ -4,7 +4,11 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
-    cors_origins: list[str] = ["http://localhost:5173"]
+    # Comma-separated origin allowlist; main.py splits and trims. Stored as a
+    # plain string so Cloud Run / Docker env vars can pass it without JSON
+    # quoting. Empty string => no cross-origin access (used on the first
+    # deploy before the frontend URL is known).
+    cors_origins: str = "http://localhost:5173"
     database_url: str = "sqlite:///./meteo_map_lab.db"
     smhi_base_url: str = "https://opendata-download-metobs.smhi.se/api"
     cloud_cover_param: int = 16  # default parameter for the endpoint

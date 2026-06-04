@@ -65,13 +65,13 @@ GitHub Actions (OIDC token)
         └── gcloud run deploy (revision swap) ──▶ Cloud Run revisions
 
 europe-north1
-        ├── Cloud Run: meteo-map-lab-backend (min=1, max=1, 0.25 vCPU / 512 MiB)
+        ├── Cloud Run: meteo-map-lab-backend (min=1, max=1, 1 vCPU / 512 MiB, cpu_idle=true)
         │     ├── tmpfs /data ──▶ /data/meteo_map_lab.db (SQLite)
         │     └── litestream replicate -exec "uvicorn ..."
         │                │
         │                └──▶ GCS bucket: meteo-map-lab-litestream  (versioned, lifecycle)
         │
-        ├── Cloud Run: meteo-map-lab-frontend (min=0, max=4, 0.25 vCPU / 256 MiB)
+        ├── Cloud Run: meteo-map-lab-frontend (min=0, max=4, 1 vCPU / 512 MiB, cpu_idle=true)
         │     └── nginx ──▶ Vite-built dist/ (VITE_API_URL baked at build)
         │
         ├── Artifact Registry repo: meteo-map-lab
@@ -201,7 +201,7 @@ Run service identity (Application Default Credentials).
 ### 5.5 Cloud Run service config (Terraform-shaped)
 
 - 2nd-gen execution environment.
-- CPU: 0.25 vCPU, Memory: 512 MiB.
+- CPU: 1 vCPU (gen2 minimum), Memory: 512 MiB. `cpu_idle = true` so the CPU is throttled between requests — only the always-warm reservation is billed during idle.
 - `min_instance_count = 1`, `max_instance_count = 1`.
 - Concurrency: 80 (default).
 - Volume: `empty_dir { medium = "MEMORY" size_limit = "512Mi" }` mounted
@@ -247,7 +247,7 @@ server {
 
 ### 6.3 Cloud Run service config
 
-- 0.25 vCPU, 256 MiB.
+- 1 vCPU (gen2 minimum), 512 MiB (gen2 minimum). `cpu_idle = true`.
 - `min_instance_count = 0`, `max_instance_count = 4`.
 - No SA permissions beyond default (static content only).
 
@@ -365,7 +365,7 @@ constants known at TF-write time.
 
 | Item | Sizing | Est. €/mo |
 | --- | --- | --- |
-| Cloud Run backend (always-on) | 0.25 vCPU, 512 MiB, `min=1` | ~€5–7 |
+| Cloud Run backend (always-on) | 1 vCPU (gen2 minimum) / 512 MiB / `min=1` / `cpu_idle=true` | ~€9–12 |
 | Cloud Run frontend | scale-to-zero, ~10k req/mo | €0 (free tier) |
 | GCS Litestream replica | < 1 GB, versioned | < €0.10 |
 | GCS operations (Litestream + TF) | low | < €0.50 |
@@ -374,7 +374,7 @@ constants known at TF-write time.
 | Secret Manager | 1 secret, low access | €0 (free tier) |
 | Cloud Logging | low volume | €0 (under 50 GiB free) |
 | Egress to internet | small | €0–1 |
-| **Total** | | **~€6–9/mo** |
+| **Total** | | **~€10–13/mo** |
 
 GitHub Actions: free for public repos; private repos get 2 000 min/mo
 free on personal accounts — well within reach.
