@@ -1,0 +1,153 @@
+# Main-branch deploy: build both production images, push them to Artifact
+# Registry, and roll out new Cloud Run revisions. Terraform runs in two
+# passes so the backend's CORS_ORIGINS can be set to the live frontend URL
+# (the first pass keeps the current CORS to avoid drift on the always-on
+# backend; the second pass updates it after the frontend deploys).
+#
+# Authenticates to GCP via Workload Identity Federation, the same pool the
+# bootstrap module created — no JSON keys.
+
+name: deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch: {}  # let humans trigger a re-deploy without a commit
+
+permissions:
+  contents: read
+
+env:
+  REGION: europe-north1
+  PROJECT: ${{ secrets.GCP_PROJECT_ID }}
+  REPO: meteo-map-lab
+  BE_SERVICE: meteo-map-lab-backend
+  FE_SERVICE: meteo-map-lab-frontend
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write   # WIF
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WIF_PROVIDER }}
+          service_account: ${{ secrets.GCP_CI_SA_EMAIL }}
+
+      - uses: google-github-actions/setup-gcloud@v2
+
+      - name: Configure Docker for Artifact Registry
+        run: gcloud auth configure-docker ${{ env.REGION }}-docker.pkg.dev --quiet
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ~1.15
+
+      - id: vars
+        name: Compute tags + look up current CORS
+        run: |
+          set -euo pipefail
+          SHA_SHORT=${GITHUB_SHA::7}
+          IMAGE_BASE="${REGION}-docker.pkg.dev/${PROJECT}/${REPO}"
+          echo "sha=$SHA_SHORT" >> "$GITHUB_OUTPUT"
+          echo "be_image=$IMAGE_BASE/backend:$SHA_SHORT" >> "$GITHUB_OUTPUT"
+          echo "fe_image=$IMAGE_BASE/frontend:$SHA_SHORT" >> "$GITHUB_OUTPUT"
+          # CORS_ORIGINS persists across deploys; pass A re-passes it so the
+          # always-on backend doesn't briefly drop allowed origins. Empty on
+          # the very first deploy (acceptable — pass B fills it in).
+          CORS=$(gcloud run services describe "$BE_SERVICE" \
+                   --region="$REGION" --project="$PROJECT" --format=json 2>/dev/null \
+                 | jq -r '.template.containers[0].env[]? | select(.name=="CORS_ORIGINS") | .value' \
+                 || echo "")
+          echo "cors=$CORS" >> "$GITHUB_OUTPUT"
+
+      - name: Terraform apply (pass A — preserve current CORS)
+        working-directory: infra/main
+        run: |
+          set -euo pipefail
+          terraform init -no-color -input=false
+          terraform apply -auto-approve -no-color -input=false -lock-timeout=2m \
+            -var="project_id=$PROJECT" \
+            -var="cors_origins=${{ steps.vars.outputs.cors }}"
+
+      - name: Build & push backend image
+        run: |
+          set -euo pipefail
+          docker build \
+            -t "${{ steps.vars.outputs.be_image }}" \
+            -f backend/Dockerfile.prod .
+          docker push "${{ steps.vars.outputs.be_image }}"
+
+      - name: Deploy backend revision
+        run: |
+          gcloud run deploy "$BE_SERVICE" \
+            --image="${{ steps.vars.outputs.be_image }}" \
+            --region="$REGION" --project="$PROJECT" --quiet
+
+      - id: be
+        name: Capture backend URL
+        run: |
+          URL=$(gcloud run services describe "$BE_SERVICE" \
+                  --region="$REGION" --project="$PROJECT" --format='value(uri)')
+          echo "url=$URL" >> "$GITHUB_OUTPUT"
+
+      - id: maptiler
+        name: Fetch MapTiler key from Secret Manager
+        run: |
+          set -euo pipefail
+          KEY=$(gcloud secrets versions access latest \
+                  --secret=maptiler-key --project="$PROJECT")
+          # Mask the value in subsequent logs. The key ends up in the public
+          # Vite bundle anyway (frontend uses it client-side), so this is
+          # log-hygiene rather than real secrecy.
+          echo "::add-mask::$KEY"
+          echo "key=$KEY" >> "$GITHUB_OUTPUT"
+
+      - name: Build & push frontend image
+        run: |
+          set -euo pipefail
+          docker build \
+            -t "${{ steps.vars.outputs.fe_image }}" \
+            --build-arg "VITE_API_URL=${{ steps.be.outputs.url }}" \
+            --build-arg "VITE_MAPTILER_KEY=${{ steps.maptiler.outputs.key }}" \
+            -f frontend/Dockerfile.prod .
+          docker push "${{ steps.vars.outputs.fe_image }}"
+
+      - name: Deploy frontend revision
+        run: |
+          gcloud run deploy "$FE_SERVICE" \
+            --image="${{ steps.vars.outputs.fe_image }}" \
+            --region="$REGION" --project="$PROJECT" --quiet
+
+      - id: fe
+        name: Capture frontend URL
+        run: |
+          URL=$(gcloud run services describe "$FE_SERVICE" \
+                  --region="$REGION" --project="$PROJECT" --format='value(uri)')
+          echo "url=$URL" >> "$GITHUB_OUTPUT"
+
+      - name: Terraform apply (pass B — set CORS to live frontend URL)
+        working-directory: infra/main
+        run: |
+          terraform apply -auto-approve -no-color -input=false -lock-timeout=2m \
+            -var="project_id=$PROJECT" \
+            -var="cors_origins=${{ steps.fe.outputs.url }}"
+
+      - name: Deploy summary
+        if: always()
+        run: |
+          {
+            echo "## Deploy summary"
+            echo ""
+            echo "| | |"
+            echo "|---|---|"
+            echo "| Commit | \`${{ steps.vars.outputs.sha }}\` |"
+            echo "| Backend | ${{ steps.be.outputs.url }} |"
+            echo "| Frontend | ${{ steps.fe.outputs.url }} |"
+            echo "| BE image | \`${{ steps.vars.outputs.be_image }}\` |"
+            echo "| FE image | \`${{ steps.vars.outputs.fe_image }}\` |"
+          } >> "$GITHUB_STEP_SUMMARY"
