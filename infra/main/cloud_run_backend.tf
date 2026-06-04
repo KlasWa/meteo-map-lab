@@ -30,8 +30,12 @@ resource "google_cloud_run_v2_service" "backend" {
 
       resources {
         limits = {
-          cpu    = "1"
-          memory = "512Mi"
+          cpu = "1"
+          // 1 GiB headroom for the cold-cache SMHI fetch — parsing the
+          // multi-year corrected-archive CSV in Python easily exceeds 512 MiB.
+          // The tmpfs /data volume also counts against this limit (size cap
+          // matched below in the volumes block).
+          memory = "1Gi"
         }
         // Request-based CPU. Cloud Run gen2's minimum is 1 vCPU; fractional
         // vCPU is gen1-only and gen1 doesn't support volume mounts (we need
@@ -66,7 +70,8 @@ resource "google_cloud_run_v2_service" "backend" {
 
     // Ephemeral in-memory volume for the SQLite file. Litestream restores
     // from GCS on container start and streams the WAL out continuously while
-    // running. tmpfs counts against the container's memory limit.
+    // running. tmpfs counts against the container's memory limit, so we
+    // budget half the container memory for the DB file.
     volumes {
       name = "data"
       empty_dir {
@@ -74,6 +79,11 @@ resource "google_cloud_run_v2_service" "backend" {
         size_limit = "512Mi"
       }
     }
+
+    // Override Cloud Run's default request timeout. The SMHI cold-cache
+    // fetch can take 60-90s the first time a coordinate is queried; the
+    // default may be tighter on some projects.
+    timeout = "600s"
   }
 
   // Image is owned by the deploy workflow (`gcloud run deploy …:SHA`), not
