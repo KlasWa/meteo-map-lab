@@ -101,35 +101,35 @@ export function RiskPanel({
         <div className="space-y-2">
           <div className="space-y-1">
             <div className="grid grid-cols-3 gap-2">
-              <label className="form-control">
+              <label className="flex flex-col gap-1">
                 <span className="label-text text-[0.7rem]">Length (m)</span>
                 <input
                   type="number"
                   min="0"
                   step="any"
-                  className="input input-bordered input-xs"
+                  className="input input-bordered input-xs w-full"
                   value={length}
                   onChange={(e) => setLength(e.target.value)}
                 />
               </label>
-              <label className="form-control">
+              <label className="flex flex-col gap-1">
                 <span className="label-text text-[0.7rem]">Width (m)</span>
                 <input
                   type="number"
                   min="0"
                   step="any"
-                  className="input input-bordered input-xs"
+                  className="input input-bordered input-xs w-full"
                   value={width}
                   onChange={(e) => setWidth(e.target.value)}
                 />
               </label>
-              <label className="form-control">
+              <label className="flex flex-col gap-1">
                 <span className="label-text text-[0.7rem]">Height (m)</span>
                 <input
                   type="number"
                   min="0"
                   step="any"
-                  className="input input-bordered input-xs"
+                  className="input input-bordered input-xs w-full"
                   value={height}
                   onChange={(e) => setHeight(e.target.value)}
                 />
