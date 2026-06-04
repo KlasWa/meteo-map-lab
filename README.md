@@ -113,10 +113,9 @@ flowchart TD
     SMHI3 -->|"upsert_observations<br/>(clipped to history_months)"| OB
     SMHI3 -->|"record_fetch"| FL
 
-    Svc --> GO["4 · get_observations(window = history_months)"]
-    GO -->|"read rows ordered by ts_utc"| OB
-    GO --> AGG["5 · aggregate → hourly / daily / monthly"]
-    AGG --> Resp["CloudCoverResponse<br/>station, points, stale"]
+    Svc --> AG["4 · aggregate_observations(window = history_months, resolution)"]
+    AG -->|"GROUP BY bucket; AVG(value); COUNT(value) — done in SQL"| OB
+    AG --> Resp["CloudCoverResponse<br/>station, points, stale"]
 ```
 
 How each table is hit:
@@ -129,8 +128,10 @@ How each table is hit:
   `(param, station_id, ts_utc)` with `value` (native unit) and `quality`.
   **Written** by `upsert_observations` after a recent or archive fetch (step 3),
   using an `ON CONFLICT DO UPDATE` upsert. **Read** in step 4 by
-  `get_observations` for the `history_months` window, then aggregated and
-  returned.
+  `aggregate_observations`, which buckets and means in SQL
+  (`strftime('start of day' / 'start of month', …)` + `GROUP BY`) instead of
+  hydrating rows into Python — keeps cached-read latency in the ~100 ms range
+  on Cloud Run's 1 throttled vCPU.
 - **`FetchLog`** — the fetch ledger keyed by `(param, station_id, kind)`, the
   gatekeeper for every SMHI call. Three `kind`s: `station_list`
   (`station_id=0`), `recent`, and `archive`. **Read** at the top of steps 1
@@ -237,6 +238,5 @@ Recommended one-time setup in the GCP Console (free, ~5 min):
 
 ## Out of scope (later)
 
-CI/CD pipelines (designed in the deploy spec above, not yet implemented),
-horizontal backend scaling (incompatible with single-writer SQLite), a custom
+Horizontal backend scaling (incompatible with single-writer SQLite), a custom
 domain, and AI forecasting.
