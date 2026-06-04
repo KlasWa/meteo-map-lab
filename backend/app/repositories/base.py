@@ -4,7 +4,7 @@ method is scoped by SMHI parameter id (`param`)."""
 
 from abc import ABC, abstractmethod
 
-from app.dto import ParsedObs, StationRaw
+from app.dto import AggPoint, ParsedObs, StationRaw
 from app.models import FetchLog
 
 
@@ -29,6 +29,31 @@ class CacheRepository(ABC):
     def get_observations(
         self, station_id: int, start_ts: int, end_ts: int, param: int = 16
     ) -> list[ParsedObs]: ...
+
+    @abstractmethod
+    def aggregate_observations(
+        self,
+        station_id: int,
+        start_ts: int,
+        end_ts: int,
+        resolution: str,
+        param: int = 16,
+    ) -> list[AggPoint]:
+        """Return per-bucket points for the window — hourly raw, daily/monthly
+        means in UTC. Aggregating in storage avoids hydrating ~9k ORM rows
+        per request, which dominates latency on small Cloud Run vCPUs."""
+
+    @abstractmethod
+    def aggregate_combined_observations(
+        self,
+        station_id: int,
+        start_ts: int,
+        end_ts: int,
+        resolution: str,
+        params: list[int],
+    ) -> list[AggPoint]:
+        """Combine layer params by per-timestamp MAX (WMO cumulative octas)
+        and aggregate the merged series — done in a single SQL pass."""
 
     @abstractmethod
     def get_fetch_log(self, station_id: int, kind: str, param: int = 16) -> FetchLog | None: ...

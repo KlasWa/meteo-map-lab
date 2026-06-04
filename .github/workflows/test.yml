@@ -7,7 +7,9 @@ name: test
 
 on:
   pull_request:
-    branches: [main]
+    # PRs into either branch get the same checks. `deploy.yml` still only
+    # fires on push to main, so adding develop here doesn't affect rollouts.
+    branches: [main, develop]
   push:
     branches: [main]
 

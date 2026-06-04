@@ -101,35 +101,35 @@ export function RiskPanel({
         <div className="space-y-2">
           <div className="space-y-1">
             <div className="grid grid-cols-3 gap-2">
-              <label className="form-control">
+              <label className="flex flex-col gap-1">
                 <span className="label-text text-[0.7rem]">Length (m)</span>
                 <input
                   type="number"
                   min="0"
                   step="any"
-                  className="input input-bordered input-xs"
+                  className="input input-bordered input-xs w-full"
                   value={length}
                   onChange={(e) => setLength(e.target.value)}
                 />
               </label>
-              <label className="form-control">
+              <label className="flex flex-col gap-1">
                 <span className="label-text text-[0.7rem]">Width (m)</span>
                 <input
                   type="number"
                   min="0"
                   step="any"
-                  className="input input-bordered input-xs"
+                  className="input input-bordered input-xs w-full"
                   value={width}
                   onChange={(e) => setWidth(e.target.value)}
                 />
               </label>
-              <label className="form-control">
+              <label className="flex flex-col gap-1">
                 <span className="label-text text-[0.7rem]">Height (m)</span>
                 <input
                   type="number"
                   min="0"
                   step="any"
-                  className="input input-bordered input-xs"
+                  className="input input-bordered input-xs w-full"
                   value={height}
                   onChange={(e) => setHeight(e.target.value)}
                 />
@@ -148,10 +148,14 @@ export function RiskPanel({
           </div>
 
           <div className="grid grid-cols-2 gap-2">
-            <label className="form-control">
+            {/* `flex flex-col` is explicit because daisyUI 5 dropped the
+                form-control utility that previously stacked label-text above
+                its control. Without it, `<select>` would render inline with
+                its sibling span. */}
+            <label className="flex flex-col gap-1">
               <span className="label-text text-[0.7rem]">Surroundings</span>
               <select
-                className="select select-bordered select-xs"
+                className="select select-bordered select-xs w-full"
                 value={factor}
                 onChange={(e) =>
                   setFactor(Number(e.target.value) as LocationFactor)
@@ -164,7 +168,7 @@ export function RiskPanel({
                 ))}
               </select>
             </label>
-            <label className="form-control">
+            <label className="flex flex-col gap-1">
               <span className="label-text text-[0.7rem]">
                 Incoming line length (m, optional)
               </span>
@@ -172,7 +176,7 @@ export function RiskPanel({
                 type="number"
                 min="0"
                 step="any"
-                className="input input-bordered input-xs"
+                className="input input-bordered input-xs w-full"
                 value={lineLength}
                 onChange={(e) => setLineLength(e.target.value)}
               />

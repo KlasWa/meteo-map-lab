@@ -1,11 +1,17 @@
+import logging
+import time
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.routes import router
 from app.core.config import settings
+from app.core.logging import configure_logging
 from app.db.session import init_db
+
+configure_logging()
+_logger = logging.getLogger("app.request")
 
 
 @asynccontextmanager
@@ -28,6 +34,25 @@ def build_app(cors_origins: str) -> FastAPI:
         allow_methods=["*"],
         allow_headers=["*"],
     )
+
+    # Per-request timing. Cloud Logging picks up the `extra` fields as
+    # jsonPayload.* (via JsonFormatter); filter for slow paths with
+    # `jsonPayload.duration_ms > 500`.
+    @api.middleware("http")
+    async def request_timing(request: Request, call_next):
+        started = time.perf_counter()
+        response = await call_next(request)
+        duration_ms = round((time.perf_counter() - started) * 1000, 1)
+        _logger.info(
+            "request_complete",
+            extra={
+                "path": request.url.path,
+                "method": request.method,
+                "status": response.status_code,
+                "duration_ms": duration_ms,
+            },
+        )
+        return response
 
     api.include_router(router)
     return api
