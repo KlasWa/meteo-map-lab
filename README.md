@@ -102,22 +102,22 @@ sequenceDiagram
     participant DB as SQLite cache
     participant SMHI as SMHI Open Data
 
-    User->>API: GET /api/cloud-cover?lat&lon&resolution&param=16
-    API->>DB: SELECT FetchLog (station_list, recent, archive)
-    DB-->>API: empty / stale
+    User->>API: GET /api/cloud-cover lat lon resolution param=16
+    API->>DB: SELECT FetchLog — station_list, recent, archive
+    DB-->>API: empty or stale
     API->>SMHI: GET /parameter/16.json
-    SMHI-->>API: station list (~80 stations)
-    API->>DB: UPSERT Station; record_fetch(station_list)
-    API->>DB: nearest active station (haversine)
+    SMHI-->>API: station list, ~80 stations
+    API->>DB: UPSERT Station + record_fetch station_list
+    API->>DB: nearest active station, haversine
     DB-->>API: station
-    API->>SMHI: GET /parameter/16/station/{id}/latest-months/data.json
+    API->>SMHI: GET latest-months JSON for nearest station
     SMHI-->>API: ~4 months hourly
-    API->>SMHI: GET /parameter/16/station/{id}/corrected-archive/data.csv
+    API->>SMHI: GET corrected-archive CSV
     SMHI-->>API: ~13 months hourly
-    API->>DB: UPSERT Observation; record_fetch(recent, archive)
-    API->>DB: GROUP BY bucket; AVG(value); COUNT(value)
-    DB-->>API: aggregated points (e.g. ~13 monthly)
-    API-->>User: CloudCoverResponse (200, ~1–2 s)
+    API->>DB: UPSERT Observation + record_fetch recent, archive
+    API->>DB: GROUP BY bucket; AVG value; COUNT value
+    DB-->>API: aggregated points, e.g. ~13 monthly
+    API-->>User: CloudCoverResponse 200, ~1–2 s
 ```
 
 **Scenario 2 — second go (cache hit).** All three `FetchLog` TTLs still fresh,
@@ -132,14 +132,14 @@ sequenceDiagram
     participant DB as SQLite cache
     participant SMHI as SMHI Open Data
 
-    User->>API: GET /api/cloud-cover?lat&lon&resolution&param=16
-    API->>DB: SELECT FetchLog (station_list, recent, archive)
+    User->>API: GET /api/cloud-cover lat lon resolution param=16
+    API->>DB: SELECT FetchLog — station_list, recent, archive
     DB-->>API: all rows within TTL
     API->>DB: nearest active station
     DB-->>API: station
-    API->>DB: GROUP BY bucket; AVG(value); COUNT(value)
+    API->>DB: GROUP BY bucket; AVG value; COUNT value
     DB-->>API: aggregated points
-    API-->>User: CloudCoverResponse (200, ~100 ms)
+    API-->>User: CloudCoverResponse 200, ~100 ms
     Note over SMHI: not called — TTLs all fresh
 ```
 
@@ -195,18 +195,18 @@ sequenceDiagram
     participant DB as SQLite cache
     participant SMHI as SMHI Open Data
 
-    User->>API: GET /api/lightning-risk?lat&lon&length_m&width_m&height_m&location_factor
-    API->>DB: SELECT LightningDay (which days are cached?)
+    User->>API: GET /api/lightning-risk lat lon L W H location_factor
+    API->>DB: SELECT LightningDay — which days are cached
     DB-->>API: covered set
     opt missing days inside the retained window
-        API->>SMHI: GET /year/{y}/month/{m}/day/{d}/data.json (in parallel)
+        API->>SMHI: GET day-files in parallel for each missing day
         SMHI-->>API: per-day strike JSON
-        API->>DB: UPSERT LightningStrike + LightningDay; record_fetch
+        API->>DB: UPSERT LightningStrike + LightningDay + record_fetch
     end
-    API->>DB: COUNT ground flashes within radius_km (cloud_indicator = 0)
+    API->>DB: COUNT ground flashes within radius_km, cloud_indicator = 0
     DB-->>API: ground / total counts, time span
-    Note right of API: N_G = ground / (π·R²·yrs)<br/>A_D = L·W + 6H(L+W) + 9πH²<br/>N_D = N_G·A_D·C_D<br/>P = 1 − exp(−N_D)
-    API-->>User: LightningRiskResponse (P, hazard_band, return_period, N_G, ...)
+    Note right of API: N_G = ground ÷ [π·R²·yrs]<br/>A_D = L·W + 6·H·[L+W] + 9·π·H²<br/>N_D = N_G·A_D·C_D<br/>P = 1 − exp[−N_D]
+    API-->>User: LightningRiskResponse — P, hazard_band, return_period, N_G
 ```
 
 1. **Ground flash density `N_G`** — `LightningService.ground_flash_density`
@@ -306,6 +306,33 @@ Every inbound request, the matching `request_complete` log line, and any
 `X-Cloud-Trace-Context` header). In Cloud Logging, opening one entry
 reveals all related entries grouped under that trace — useful when chasing
 a single slow request through to the SMHI calls it made.
+
+### Branch protection
+
+`main` and `develop` both require a PR before merge — no direct pushes. Set
+with the `gh` CLI (re-run from any fresh clone):
+
+```sh
+for branch in main develop; do
+  gh api -X PUT "repos/KlasWa/meteo-map-lab/branches/$branch/protection" \
+    --input - <<'JSON'
+{
+  "required_status_checks": null,
+  "enforce_admins": false,
+  "required_pull_request_reviews": { "required_approving_review_count": 0 },
+  "restrictions": null,
+  "allow_force_pushes": false,
+  "allow_deletions": false
+}
+JSON
+done
+```
+
+`required_approving_review_count: 0` means a PR is required but you can
+self-merge — fitting for a solo project. `enforce_admins: false` leaves an
+emergency escape hatch if you ever need it. Branch protection isn't
+Terraform-managed here (would mean a GitHub-provider token to babysit);
+the one-liner is the better trade for this scale.
 
 ### Cleaner dashboard filters
 
