@@ -566,6 +566,7 @@ export default function App() {
                   lon={selection.lon}
                   measuring={drawing}
                   onToggleMeasure={() => setDrawing((d) => !d)}
+                  lightningBusy={lightningBusy}
                 />
 
                 <div className="mt-2">

@@ -24,29 +24,46 @@ export function RiskPanel({
   lon,
   measuring,
   onToggleMeasure,
+  lightningBusy = false,
 }: {
   lat: number;
   lon: number;
   measuring: boolean;
   onToggleMeasure: () => void;
+  /** When true, overlay a spinner — strike risk reads cached lightning data,
+   *  so the form is unusable until the lightning fetch finishes. */
+  lightningBusy?: boolean;
 }) {
   const { length, width, height, lineLength, factor, measureFlashTick } =
     useRiskInputs();
   const [result, setResult] = useState<LightningRisk | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const [flashMeasuredDims, setFlashMeasuredDims] = useState(false);
   const resultRef = useRef<HTMLDivElement>(null);
+  const lengthInputRef = useRef<HTMLInputElement>(null);
+  const widthInputRef = useRef<HTMLInputElement>(null);
 
+  // Flash the Length / Width inputs when the measure tool populated them.
+  // Done via DOM classList instead of React state — restarting a CSS
+  // animation from React state needs a setState->setState cascade in the
+  // effect (the react-hooks/set-state-in-effect rule rightly complains).
+  // `void el.offsetWidth` forces a reflow so the browser sees the class
+  // removal and the re-add as two separate frames.
   useEffect(() => {
     if (measureFlashTick === 0) return;
-    setFlashMeasuredDims(false);
-    const raf = requestAnimationFrame(() => setFlashMeasuredDims(true));
-    const done = window.setTimeout(() => setFlashMeasuredDims(false), 850);
-    return () => {
-      cancelAnimationFrame(raf);
-      window.clearTimeout(done);
-    };
+    const els = [lengthInputRef.current, widthInputRef.current].filter(
+      (el): el is HTMLInputElement => el !== null,
+    );
+    const cls = "animate-measure-input-flash";
+    for (const el of els) {
+      el.classList.remove(cls);
+      void el.offsetWidth;
+      el.classList.add(cls);
+    }
+    const done = window.setTimeout(() => {
+      for (const el of els) el.classList.remove(cls);
+    }, 900);
+    return () => window.clearTimeout(done);
   }, [measureFlashTick]);
 
   useEffect(() => {
@@ -107,20 +124,33 @@ export function RiskPanel({
 
   return (
     <section className="card card-compact min-w-0 overflow-hidden border border-base-300 bg-base-100">
-      <div className="card-body gap-2 p-3">
+      <div className="card-body relative gap-2 p-3">
         <h3 className="text-xs font-semibold opacity-70">
           Strike risk (IEC 62305)
         </h3>
+        {lightningBusy && (
+          // Mirrors the LightningChart's spinner pattern. Strike risk relies
+          // on cached lightning data, so the inputs are blocked until the
+          // fetch finishes — otherwise Calculate would 503 on a cold cache.
+          <div
+            className="absolute inset-0 z-10 flex items-center justify-center rounded-box bg-base-100/70 backdrop-blur-sm"
+            aria-busy="true"
+            aria-live="polite"
+          >
+            <span className="loading loading-spinner loading-lg" />
+          </div>
+        )}
         <div className="space-y-2">
           <div className="space-y-1">
             <div className="grid grid-cols-3 gap-1.5 sm:gap-2 [&>*]:min-w-0">
               <label className="flex min-w-0 flex-col gap-1">
                 <span className="label-text text-[0.7rem]">Length (m)</span>
                 <input
+                  ref={lengthInputRef}
                   type="number"
                   min="0"
                   step="any"
-                  className={`input input-bordered input-xs w-full${flashMeasuredDims ? " animate-measure-input-flash" : ""}`}
+                  className="input input-bordered input-xs w-full"
                   value={length}
                   onChange={(e) => setLength(e.target.value)}
                 />
@@ -128,10 +158,11 @@ export function RiskPanel({
               <label className="flex min-w-0 flex-col gap-1">
                 <span className="label-text text-[0.7rem]">Width (m)</span>
                 <input
+                  ref={widthInputRef}
                   type="number"
                   min="0"
                   step="any"
-                  className={`input input-bordered input-xs w-full${flashMeasuredDims ? " animate-measure-input-flash" : ""}`}
+                  className="input input-bordered input-xs w-full"
                   value={width}
                   onChange={(e) => setWidth(e.target.value)}
                 />
