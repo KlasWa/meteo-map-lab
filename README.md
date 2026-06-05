@@ -115,7 +115,7 @@ sequenceDiagram
     API->>SMHI: GET corrected-archive CSV
     SMHI-->>API: ~13 months hourly
     API->>DB: UPSERT Observation + record_fetch recent, archive
-    API->>DB: GROUP BY bucket; AVG value; COUNT value
+    API->>DB: GROUP BY bucket, AVG value, COUNT value
     DB-->>API: aggregated points, e.g. ~13 monthly
     API-->>User: CloudCoverResponse 200, ~1–2 s
 ```
@@ -137,7 +137,7 @@ sequenceDiagram
     DB-->>API: all rows within TTL
     API->>DB: nearest active station
     DB-->>API: station
-    API->>DB: GROUP BY bucket; AVG value; COUNT value
+    API->>DB: GROUP BY bucket, AVG value, COUNT value
     DB-->>API: aggregated points
     API-->>User: CloudCoverResponse 200, ~100 ms
     Note over SMHI: not called — TTLs all fresh
