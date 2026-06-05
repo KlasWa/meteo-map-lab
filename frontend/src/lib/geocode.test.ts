@@ -2,19 +2,19 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { reverseGeocode } from "./geocode";
 
-const originalFetch = global.fetch;
+const originalFetch = globalThis.fetch;
 
 describe("reverseGeocode", () => {
   beforeEach(() => {
-    global.fetch = vi.fn();
+    globalThis.fetch = vi.fn();
   });
   afterEach(() => {
-    global.fetch = originalFetch;
+    globalThis.fetch = originalFetch;
     vi.restoreAllMocks();
   });
 
   it("returns place_name from the first feature", async () => {
-    (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
+    (globalThis.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
       ok: true,
       json: async () => ({
         features: [
@@ -31,7 +31,7 @@ describe("reverseGeocode", () => {
   });
 
   it("falls back to text when place_name is missing", async () => {
-    (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
+    (globalThis.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
       ok: true,
       json: async () => ({ features: [{ text: "Some Lake" }] }),
     } as Response);
@@ -40,7 +40,7 @@ describe("reverseGeocode", () => {
   });
 
   it("returns null when the response has no features", async () => {
-    (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
+    (globalThis.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
       ok: true,
       json: async () => ({ features: [] }),
     } as Response);
@@ -49,7 +49,7 @@ describe("reverseGeocode", () => {
   });
 
   it("returns null on a non-OK response (rate-limit, bad key, …)", async () => {
-    (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
+    (globalThis.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
       ok: false,
       status: 429,
       json: async () => ({}),
@@ -60,7 +60,7 @@ describe("reverseGeocode", () => {
 
   it("passes the abort signal through to fetch", async () => {
     const controller = new AbortController();
-    const fetchMock = global.fetch as ReturnType<typeof vi.fn>;
+    const fetchMock = globalThis.fetch as ReturnType<typeof vi.fn>;
     fetchMock.mockResolvedValue({
       ok: true,
       json: async () => ({ features: [] }),
@@ -74,7 +74,7 @@ describe("reverseGeocode", () => {
   });
 
   it("sends lon,lat (not lat,lon) — MapTiler convention", async () => {
-    const fetchMock = global.fetch as ReturnType<typeof vi.fn>;
+    const fetchMock = globalThis.fetch as ReturnType<typeof vi.fn>;
     fetchMock.mockResolvedValue({
       ok: true,
       json: async () => ({ features: [] }),
