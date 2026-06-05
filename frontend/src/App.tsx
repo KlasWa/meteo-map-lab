@@ -384,9 +384,11 @@ export default function App() {
 
   return (
     <div className="flex h-screen min-h-0 flex-col overflow-hidden lg:flex-row">
-      {/* Map: full width and ~30vh tall on mobile (on top), fills the left
-          column on large screens. */}
-      <div className="relative h-[30vh] w-full max-w-full shrink-0 overflow-hidden lg:h-auto lg:w-auto lg:min-h-0 lg:flex-1 lg:shrink">
+      {/* Map: fills whatever space the aside doesn't claim. On mobile that's
+          the top portion of the screen; on lg it's the left column. flex-1 in
+          both axes makes the map reflow smoothly as the aside's animated
+          width/height interpolates. */}
+      <div className="relative min-h-0 min-w-0 flex-1 overflow-hidden">
         <MapView
           onSelect={handleSelect}
           onMapClick={handleMapClick}
@@ -403,16 +405,20 @@ export default function App() {
         />
       </div>
 
-      {/* Aside: below the map on mobile, on the right on large screens. An inner
-          scroll region keeps overflow off the flex column wrapper (required for
-          overflow-y-auto to work). */}
-      <aside className="flex min-h-0 w-full max-w-full flex-1 flex-col overflow-hidden border-t border-base-300 bg-base-200 lg:h-full lg:w-[640px] lg:max-w-full lg:flex-none lg:border-l lg:border-t-0">
+      {/* Aside: below the map on mobile, on the right on large screens. Sized
+          smaller in the empty state and expands when a point is selected, with
+          a CSS transition. An inner scroll region keeps overflow off the flex
+          column wrapper (required for overflow-y-auto to work). */}
+      <aside
+        className={`flex min-h-0 w-full max-w-full flex-none flex-col overflow-hidden border-t border-base-300 bg-base-200 transition-all duration-300 ease-out ${
+          selection ? "h-[70vh] lg:w-[640px]" : "h-[33vh] lg:w-[420px]"
+        } lg:h-full lg:max-w-full lg:border-l lg:border-t-0`}
+      >
         <div className="min-h-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-y-contain p-4">
           <div className="flex min-w-0 max-w-full flex-col gap-4">
             {!selection ? (
-              <div className="rounded-box border border-dashed border-base-300 p-4 text-sm opacity-70">
-                Search an address or click anywhere on the map to fetch data and
-                start.
+              <div className="rounded-box border border-dashed border-base-500 p-3 text-sm">
+                Search an address or click anywhere on the map to fetch data.
               </div>
             ) : (
               <>

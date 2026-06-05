@@ -228,6 +228,12 @@ export function MapView({
     });
     mapRef.current = map;
 
+    // MapTiler/MapLibre tracks window.resize but not container resize, so the
+    // canvas stretches/crops when the aside animates next to it. Observe the
+    // container and resize() on every change (RO fires at most once per frame).
+    // const resizeObs = new ResizeObserver(() => map.resize());
+    // resizeObs.observe(container);
+
     map.on("load", () => {
       map.addSource(BOX_SOURCE, { type: "geojson", data: EMPTY_FC });
       map.addLayer({
@@ -350,8 +356,18 @@ export function MapView({
 
       // If something is already selected, a map click clears it (handled by the
       // parent); only fly in when the click is actually selecting a new spot.
+      // easeTo with a fixed duration (rather than flyTo's auto ballistic curve)
+      // so the camera animation ends in step with the parent's aside CSS
+      // transition (~300ms). flyTo's auto-curve outlasts the transition by
+      // 1-2s, leaving the camera mid-flight after the layout has settled —
+      // the point reads as not-yet-centered relative to the new map size.
       if (!selectedRef.current) {
-        map.flyTo({ center: [pt.lon, pt.lat], zoom: SELECTED_ZOOM });
+        map.easeTo({
+          center: [pt.lon, pt.lat],
+          padding: { bottom: 0 },
+          zoom: SELECTED_ZOOM,
+          duration: 600,
+        });
       }
       onMapClickRef.current?.(pt.lat, pt.lon);
     });
@@ -366,6 +382,7 @@ export function MapView({
     window.addEventListener("keydown", onKeyDown);
 
     return () => {
+      // resizeObs.disconnect();
       window.removeEventListener("keydown", onKeyDown);
       cancelMeasureFade(measureFadeFrameRef);
       if (measureFadeHoldRef.current !== null) {
