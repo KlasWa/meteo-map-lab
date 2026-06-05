@@ -454,8 +454,12 @@ export default function App() {
                               />
                               {p.label}
                             </div>
-                            {res?.data ? (
-                              <div className="ml-4 space-y-0.5 text-xs">
+                            {/* Description is rendered unconditionally so the
+                                row keeps the same height across loading →
+                                data → error states (avoids CLS when the
+                                station info finally arrives). */}
+                            <div className="ml-4 space-y-0.5 text-xs">
+                              {res?.data ? (
                                 <div className="flex min-w-0 flex-wrap items-baseline gap-x-1.5 gap-y-0.5">
                                   <span className="shrink-0 opacity-50">
                                     Nearest station
@@ -486,19 +490,17 @@ export default function App() {
                                     />
                                   </svg>
                                 </div>
-                                <p className="text-[0.7rem] leading-snug opacity-50">
-                                  {p.description}
+                              ) : res?.error ? (
+                                <p className="opacity-50">{res.error}</p>
+                              ) : (
+                                <p className="opacity-50">
+                                  Finding nearest station…
                                 </p>
-                              </div>
-                            ) : res?.error ? (
-                              <p className="ml-4 text-xs opacity-50">
-                                {res.error}
+                              )}
+                              <p className="text-[0.7rem] leading-snug opacity-50">
+                                {p.description}
                               </p>
-                            ) : (
-                              <p className="ml-4 text-xs opacity-50">
-                                Finding nearest station…
-                              </p>
-                            )}
+                            </div>
                           </div>
                         );
                       })}
@@ -577,7 +579,7 @@ export default function App() {
                     </h3>
                     {purgeButton("lightning", "Purge & refresh lightning data")}
                   </div>
-                  <p className="mb-2 text-[0.7rem] leading-snug opacity-50">
+                  <p className="mb-2 text-[0.7rem] leading-snug">
                     Strikes from SMHI's national lightning-detection network
                     (all of Sweden), counted within{" "}
                     {lightning.data?.radius_km ?? 50} km of the selected point.
