@@ -13,7 +13,16 @@ const apiKey = import.meta.env.VITE_MAPTILER_KEY as string | undefined;
 // so a click / URL restore feels equivalent to a search.
 const SELECTED_ZOOM = 18;
 
+// Finger movement below this (px) counts as a tap, not a pan gesture.
+const TAP_SLOP_PX = 12;
+
+const MEASURE_HOLD_MS = 450;
+const MEASURE_FADE_MS = 500;
+const MEASURE_FILL_OPACITY = 0.35;
+
 const BOX_SOURCE = "measure-box";
+const BOX_FILL_LAYER = "measure-box-fill";
+const BOX_LINE_LAYER = "measure-box-line";
 const EMPTY_FC = { type: "FeatureCollection" as const, features: [] };
 
 function lineFC(a: LatLon, b: LatLon) {
@@ -63,8 +72,104 @@ function setMeasureData(
   src.setData(data);
 }
 
+function latLonFromEvent(lngLat: { lat: number; lng: number }): LatLon {
+  return { lat: lngLat.lat, lon: lngLat.lng };
+}
+
+function updateMeasurePreview(
+  map: maptilersdk.Map,
+  cornerA: LatLon,
+  cornerB: LatLon | null,
+  cursor: LatLon,
+): void {
+  if (!cornerB) {
+    setMeasureData(map, lineFC(cornerA, cursor));
+    return;
+  }
+  const { corners } = rotatedRectangle(cornerA, cornerB, cursor);
+  setMeasureData(map, polygonFC(corners));
+}
+
+function resetMeasurePaint(map: maptilersdk.Map): void {
+  if (!map.getLayer(BOX_FILL_LAYER)) return;
+  map.setPaintProperty(BOX_FILL_LAYER, "fill-opacity", MEASURE_FILL_OPACITY);
+  map.setPaintProperty(BOX_LINE_LAYER, "line-opacity", 1);
+}
+
+function cancelMeasureFade(frameRef: { current: number | null }): void {
+  if (frameRef.current !== null) {
+    cancelAnimationFrame(frameRef.current);
+    frameRef.current = null;
+  }
+}
+
+function fadeOutMeasureShape(
+  map: maptilersdk.Map,
+  fadeActiveRef: { current: boolean },
+  frameRef: { current: number | null },
+  holdTimerRef: { current: number | null },
+  onDone?: () => void,
+): void {
+  cancelMeasureFade(frameRef);
+  if (holdTimerRef.current !== null) {
+    window.clearTimeout(holdTimerRef.current);
+    holdTimerRef.current = null;
+  }
+  fadeActiveRef.current = true;
+  resetMeasurePaint(map);
+
+  holdTimerRef.current = window.setTimeout(() => {
+    holdTimerRef.current = null;
+    const fadeStart = performance.now();
+    const step = (now: number) => {
+      const t = Math.min(1, (now - fadeStart) / MEASURE_FADE_MS);
+      const rem = 1 - t;
+      if (map.getLayer(BOX_FILL_LAYER)) {
+        map.setPaintProperty(
+          BOX_FILL_LAYER,
+          "fill-opacity",
+          MEASURE_FILL_OPACITY * rem,
+        );
+        map.setPaintProperty(BOX_LINE_LAYER, "line-opacity", rem);
+      }
+      if (t < 1) {
+        frameRef.current = requestAnimationFrame(step);
+        return;
+      }
+      frameRef.current = null;
+      fadeActiveRef.current = false;
+      resetMeasurePaint(map);
+      setMeasureData(map, EMPTY_FC);
+      onDone?.();
+    };
+    frameRef.current = requestAnimationFrame(step);
+  }, MEASURE_HOLD_MS);
+}
+
+function setDrawGestures(map: maptilersdk.Map, enabled: boolean): void {
+  if (enabled) {
+    map.dragPan.enable();
+    map.touchZoomRotate.enable();
+    map.doubleClickZoom.enable();
+    map.getCanvas().style.cursor = "";
+    map.getCanvas().style.touchAction = "";
+  } else {
+    map.dragPan.disable();
+    map.touchZoomRotate.disable();
+    map.doubleClickZoom.disable();
+    map.getCanvas().style.cursor = "crosshair";
+    // Keep taps on the map from scrolling the page while measuring.
+    map.getCanvas().style.touchAction = "none";
+  }
+}
+
 type Props = {
-  onSelect?: (lat: number, lon: number) => void;
+  // Called when a place is picked via the geocoding control (search). The
+  // address comes straight from the picked feature, so the parent can show
+  // it without a second lookup.
+  onSelect?: (lat: number, lon: number, address?: string) => void;
+  // Called on a raw map click. No address — parent should reverse-geocode if
+  // it wants one.
   onMapClick?: (lat: number, lon: number) => void;
   selected?: LatLon | null;
   drawing?: boolean;
@@ -93,6 +198,9 @@ export function MapView({
   // after click 2; click 3 finalises the rectangle.
   const cornerARef = useRef<LatLon | null>(null);
   const cornerBRef = useRef<LatLon | null>(null);
+  const measureFadeActiveRef = useRef(false);
+  const measureFadeFrameRef = useRef<number | null>(null);
+  const measureFadeHoldRef = useRef<number | null>(null);
   // Capture the initial selection so we can center the map on URL-restored
   // coordinates without making the init effect depend on `selected`.
   const initialSelectedRef = useRef(selected);
@@ -123,82 +231,133 @@ export function MapView({
     map.on("load", () => {
       map.addSource(BOX_SOURCE, { type: "geojson", data: EMPTY_FC });
       map.addLayer({
-        id: "measure-box-fill",
+        id: BOX_FILL_LAYER,
         type: "fill",
         source: BOX_SOURCE,
-        paint: { "fill-color": "#f59e0b", "fill-opacity": 0.35 },
+        paint: {
+          "fill-color": "#f59e0b",
+          "fill-opacity": MEASURE_FILL_OPACITY,
+        },
       });
       map.addLayer({
-        id: "measure-box-line",
+        id: BOX_LINE_LAYER,
         type: "line",
         source: BOX_SOURCE,
-        paint: { "line-color": "#ea580c", "line-width": 2 },
+        paint: { "line-color": "#ea580c", "line-width": 2, "line-opacity": 1 },
       });
     });
 
     const gc = new GeocodingControl({ apiKey });
     map.addControl(gc);
 
-    // PickEvent.feature.center is [lng, lat] (Position).
+    // PickEvent.feature.center is [lng, lat] (Position). place_name is the
+    // human display string MapTiler returned for the search result — pass it
+    // up so the parent can show it without a second reverse-geocode roundtrip.
     const pickSub = gc.on("pick", (event: PickEvent) => {
       const coords = event.feature?.center;
-      if (coords) onSelectRef.current?.(coords[1], coords[0]);
+      if (!coords) return;
+      const address =
+        (event.feature as { place_name?: string } | undefined)?.place_name ??
+        undefined;
+      onSelectRef.current?.(coords[1], coords[0], address);
+    });
+
+    let touchStart: { x: number; y: number } | null = null;
+    let suppressClickUntil = 0;
+
+    const placeMeasurePoint = (pt: LatLon): boolean => {
+      if (!drawingRef.current) return false;
+
+      // Three taps: corner A, corner B (one side), then the opposite side.
+      if (!cornerARef.current) {
+        cornerARef.current = pt;
+        setMeasureData(map, EMPTY_FC);
+        return true;
+      }
+      if (!cornerBRef.current) {
+        cornerBRef.current = pt;
+        setMeasureData(map, lineFC(cornerARef.current, pt));
+        return true;
+      }
+      const { lengthM, widthM, corners } = rotatedRectangle(
+        cornerARef.current,
+        cornerBRef.current,
+        pt,
+      );
+      cornerARef.current = null;
+      cornerBRef.current = null;
+      setMeasureData(map, polygonFC(corners));
+
+      if (lengthM < 1 && widthM < 1) {
+        fadeOutMeasureShape(
+          map,
+          measureFadeActiveRef,
+          measureFadeFrameRef,
+          measureFadeHoldRef,
+          () => onDrawCancelRef.current?.(),
+        );
+      } else {
+        onRectangleDrawnRef.current?.(lengthM, widthM);
+        fadeOutMeasureShape(
+          map,
+          measureFadeActiveRef,
+          measureFadeFrameRef,
+          measureFadeHoldRef,
+        );
+      }
+      return true;
+    };
+
+    const previewMeasureAt = (cursor: LatLon) => {
+      if (!drawingRef.current || !cornerARef.current) return;
+      updateMeasurePreview(map, cornerARef.current, cornerBRef.current, cursor);
+    };
+
+    map.on("touchstart", (event) => {
+      if (!drawingRef.current) return;
+      const t = event.originalEvent.touches[0];
+      if (!t) return;
+      touchStart = { x: t.clientX, y: t.clientY };
+    });
+
+    map.on("touchend", (event) => {
+      if (!drawingRef.current || !touchStart) return;
+      const t = event.originalEvent.changedTouches[0];
+      if (!t) return;
+      const dx = t.clientX - touchStart.x;
+      const dy = t.clientY - touchStart.y;
+      touchStart = null;
+      if (dx * dx + dy * dy > TAP_SLOP_PX * TAP_SLOP_PX) return;
+      if (placeMeasurePoint(latLonFromEvent(event.lngLat))) {
+        // MapLibre also emits click after touchend; skip the duplicate.
+        suppressClickUntil = Date.now() + 500;
+      }
+    });
+
+    map.on("touchcancel", () => {
+      touchStart = null;
     });
 
     map.on("click", (event) => {
-      const { lng, lat } = event.lngLat;
-      const pt: LatLon = { lat, lon: lng };
+      const pt = latLonFromEvent(event.lngLat);
 
-      // Draw mode is a three-click rotated rectangle: corner A, then corner B
-      // (locking one side), then the diagonal click that sets the width.
-      if (drawingRef.current) {
-        if (!cornerARef.current) {
-          cornerARef.current = pt;
-          return;
-        }
-        if (!cornerBRef.current) {
-          cornerBRef.current = pt;
-          return;
-        }
-        const { lengthM, widthM } = rotatedRectangle(
-          cornerARef.current,
-          cornerBRef.current,
-          pt,
-        );
-        cornerARef.current = null;
-        cornerBRef.current = null;
-        setMeasureData(map, EMPTY_FC);
-        if (lengthM < 1 && widthM < 1) {
-          onDrawCancelRef.current?.();
-        } else {
-          onRectangleDrawnRef.current?.(lengthM, widthM);
-        }
-        return;
-      }
+      // Touchend places measure corners and exits draw mode before the
+      // synthetic click arrives; suppress that click entirely so it does not
+      // fall through to the selection-toggle handler below.
+      if (Date.now() < suppressClickUntil) return;
+
+      if (drawingRef.current && placeMeasurePoint(pt)) return;
 
       // If something is already selected, a map click clears it (handled by the
       // parent); only fly in when the click is actually selecting a new spot.
       if (!selectedRef.current) {
-        map.flyTo({ center: [lng, lat], zoom: SELECTED_ZOOM });
+        map.flyTo({ center: [pt.lon, pt.lat], zoom: SELECTED_ZOOM });
       }
-      onMapClickRef.current?.(lat, lng);
+      onMapClickRef.current?.(pt.lat, pt.lon);
     });
 
     map.on("mousemove", (event) => {
-      if (!drawingRef.current || !cornerARef.current) return;
-      const cursor: LatLon = { lat: event.lngLat.lat, lon: event.lngLat.lng };
-      if (!cornerBRef.current) {
-        // Phase 1: preview the baseline as a line.
-        setMeasureData(map, lineFC(cornerARef.current, cursor));
-      } else {
-        // Phase 2: preview the rotated rectangle sweeping toward the cursor.
-        const { corners } = rotatedRectangle(
-          cornerARef.current,
-          cornerBRef.current,
-          cursor,
-        );
-        setMeasureData(map, polygonFC(corners));
-      }
+      previewMeasureAt(latLonFromEvent(event.lngLat));
     });
 
     const onKeyDown = (e: KeyboardEvent) => {
@@ -208,6 +367,12 @@ export function MapView({
 
     return () => {
       window.removeEventListener("keydown", onKeyDown);
+      cancelMeasureFade(measureFadeFrameRef);
+      if (measureFadeHoldRef.current !== null) {
+        window.clearTimeout(measureFadeHoldRef.current);
+        measureFadeHoldRef.current = null;
+      }
+      measureFadeActiveRef.current = false;
       pickSub.unsubscribe();
       markerRef.current?.remove();
       markerRef.current = null;
@@ -216,15 +381,36 @@ export function MapView({
     };
   }, []);
 
-  // Toggle the crosshair cursor and reset any half-drawn shape when draw mode
-  // turns on or off.
+  // Toggle draw gestures; entering measure mode clears any in-progress shape.
   useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
-    map.getCanvas().style.cursor = drawing ? "crosshair" : "";
-    cornerARef.current = null;
-    cornerBRef.current = null;
-    setMeasureData(map, EMPTY_FC);
+
+    const apply = () => {
+      if (drawing) {
+        cancelMeasureFade(measureFadeFrameRef);
+        if (measureFadeHoldRef.current !== null) {
+          window.clearTimeout(measureFadeHoldRef.current);
+          measureFadeHoldRef.current = null;
+        }
+        measureFadeActiveRef.current = false;
+        setDrawGestures(map, false);
+        cornerARef.current = null;
+        cornerBRef.current = null;
+        resetMeasurePaint(map);
+        setMeasureData(map, EMPTY_FC);
+        return;
+      }
+
+      setDrawGestures(map, true);
+      if (!measureFadeActiveRef.current) {
+        resetMeasurePaint(map);
+        setMeasureData(map, EMPTY_FC);
+      }
+    };
+
+    if (map.loaded()) apply();
+    else map.once("load", apply);
   }, [drawing]);
 
   // Keep a single marker in sync with the selected coordinate. Reuses the

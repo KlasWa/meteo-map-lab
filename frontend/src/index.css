@@ -26,5 +26,29 @@ html,
 body,
 #root {
   height: 100%;
+  max-width: 100%;
   overflow: hidden;
+}
+
+/* Brief highlight when length/width are filled from map measure. */
+@keyframes measure-input-flash {
+  0%,
+  100% {
+    border-color: color-mix(
+      in oklab,
+      var(--color-base-content) 20%,
+      transparent
+    );
+    background-color: var(--color-base-100);
+    box-shadow: none;
+  }
+  35% {
+    border-color: #ea580c;
+    background-color: #fff7ed;
+    box-shadow: 0 0 0 2px color-mix(in oklab, #f59e0b 45%, transparent);
+  }
+}
+
+.animate-measure-input-flash {
+  animation: measure-input-flash 0.85s ease-out;
 }

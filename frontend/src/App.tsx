@@ -19,8 +19,9 @@ import type {
   Lightning,
   Resolution,
 } from "./lib/api";
+import { reverseGeocode } from "./lib/geocode";
 import { fillLightningGaps } from "./lib/lightning-fill";
-import { setLength, setWidth } from "./lib/riskInputs";
+import { setMeasuredDimensions } from "./lib/riskInputs";
 import { readLatLonFromUrl, writeLatLonToUrl } from "./lib/url-state";
 import type { LatLon } from "./lib/url-state";
 
@@ -116,6 +117,15 @@ export default function App() {
   // Loading starts true in that case since the fetch effect fires immediately
   // — handlers set loading for subsequent picks/clicks.
   const [selection, setSelection] = useState<LatLon | null>(readLatLonFromUrl);
+  // Address state machine for the top card:
+  //   "loading" — reverse-geocode in flight (or about to start)
+  //   "missing" — lookup returned nothing (ocean, off-map, API down)
+  //   string   — display name (from a search pick, or a reverse geocode hit)
+  // Initialised to "loading" iff we already have a selection on mount (URL
+  // restore), so the effect below kicks off without an extra render.
+  const [address, setAddress] = useState<"loading" | "missing" | string>(() =>
+    readLatLonFromUrl() ? "loading" : "missing",
+  );
   const [resolution, setResolution] = useState<Resolution>("monthly");
   const [periodLabel, setPeriodLabel] = useState<string>(
     DEFAULT_PERIOD.monthly,
@@ -139,6 +149,22 @@ export default function App() {
   useEffect(() => {
     writeLatLonToUrl(selection);
   }, [selection]);
+
+  // Reverse-geocode whenever the address is "loading" and we have a coord.
+  // Search picks bypass this by setting `address` to the place_name directly;
+  // clicks and URL restore enter "loading" so the effect fills it in.
+  // AbortController prevents a slow lookup from clobbering a newer one.
+  useEffect(() => {
+    if (!selection || address !== "loading") return;
+    const ctrl = new AbortController();
+    reverseGeocode(selection.lat, selection.lon, ctrl.signal)
+      .then((result) => setAddress(result ?? "missing"))
+      .catch((e: unknown) => {
+        if (e instanceof DOMException && e.name === "AbortError") return;
+        setAddress("missing");
+      });
+    return () => ctrl.abort();
+  }, [selection, address]);
 
   const loadCloud = useCallback(async (sel: LatLon, res: Resolution) => {
     const entries = await Promise.all(
@@ -198,12 +224,18 @@ export default function App() {
     };
   }, [selection, resolution, loadCloud, loadLightning]);
 
-  const handleSelect = useCallback((lat: number, lon: number) => {
-    setLoading(true);
-    setResults({});
-    setLightning({ data: null, error: null });
-    setSelection({ lat, lon });
-  }, []);
+  const handleSelect = useCallback(
+    (lat: number, lon: number, addressFromPick?: string) => {
+      setLoading(true);
+      setResults({});
+      setLightning({ data: null, error: null });
+      setSelection({ lat, lon });
+      // Search picks already carry place_name; clicks/URL restore don't, and
+      // the effect below kicks off a reverse lookup for "loading".
+      setAddress(addressFromPick ?? "loading");
+    },
+    [],
+  );
 
   const changeResolution = useCallback(
     (r: Resolution) => {
@@ -219,6 +251,7 @@ export default function App() {
 
   const handleClear = useCallback(() => {
     setSelection(null);
+    setAddress("missing");
     setResults({});
     setLightning({ data: null, error: null });
     setLoading(false);
@@ -353,15 +386,17 @@ export default function App() {
     <div className="flex h-screen min-h-0 flex-col overflow-hidden lg:flex-row">
       {/* Map: full width and ~30vh tall on mobile (on top), fills the left
           column on large screens. */}
-      <div className="relative h-[30vh] w-full shrink-0 lg:h-auto lg:w-auto lg:min-h-0 lg:flex-1 lg:shrink">
+      <div className="relative h-[30vh] w-full max-w-full shrink-0 overflow-hidden lg:h-auto lg:w-auto lg:min-h-0 lg:flex-1 lg:shrink">
         <MapView
           onSelect={handleSelect}
           onMapClick={handleMapClick}
           selected={selection}
           drawing={drawing}
           onRectangleDrawn={(lengthM, widthM) => {
-            setLength(String(Math.round(lengthM * 10) / 10));
-            setWidth(String(Math.round(widthM * 10) / 10));
+            setMeasuredDimensions(
+              String(Math.round(lengthM * 10) / 10),
+              String(Math.round(widthM * 10) / 10),
+            );
             setDrawing(false);
           }}
           onDrawCancel={() => setDrawing(false)}
@@ -371,9 +406,9 @@ export default function App() {
       {/* Aside: below the map on mobile, on the right on large screens. An inner
           scroll region keeps overflow off the flex column wrapper (required for
           overflow-y-auto to work). */}
-      <aside className="flex min-h-0 w-full flex-1 flex-col overflow-hidden border-t border-base-300 bg-base-200 lg:h-full lg:w-[640px] lg:max-w-full lg:flex-none lg:border-l lg:border-t-0">
-        <div className="min-h-0 flex-1 overflow-y-auto overscroll-y-contain p-4">
-          <div className="flex flex-col gap-4">
+      <aside className="flex min-h-0 w-full max-w-full flex-1 flex-col overflow-hidden border-t border-base-300 bg-base-200 lg:h-full lg:w-[640px] lg:max-w-full lg:flex-none lg:border-l lg:border-t-0">
+        <div className="min-h-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-y-contain p-4">
+          <div className="flex min-w-0 max-w-full flex-col gap-4">
             {!selection ? (
               <div className="rounded-box border border-dashed border-base-300 p-4 text-sm opacity-70">
                 Search an address or click anywhere on the map to fetch data and
@@ -381,12 +416,23 @@ export default function App() {
               </div>
             ) : (
               <>
-                <div className="card card-compact border border-base-300 bg-base-100">
+                <div className="card card-compact min-w-0 border border-base-300 bg-base-100">
                   <div className="card-body gap-2 p-4">
-                    <div className="flex items-center justify-between gap-2">
-                      <h2 className="card-title text-base opacity-60">
-                        {selection.lat.toFixed(5)}, {selection.lon.toFixed(5)}
-                      </h2>
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex min-w-0 flex-col">
+                        {address === "loading" ? (
+                          <h2 className="card-title text-base italic opacity-50">
+                            Resolving address…
+                          </h2>
+                        ) : address !== "missing" ? (
+                          <h2 className="card-title text-base truncate">
+                            {address}
+                          </h2>
+                        ) : null}
+                        <span className="font-mono text-xs opacity-60">
+                          {selection.lat.toFixed(5)}, {selection.lon.toFixed(5)}
+                        </span>
+                      </div>
                       <button
                         type="button"
                         onClick={handleClear}
@@ -396,26 +442,33 @@ export default function App() {
                         ✕
                       </button>
                     </div>
-                    <div className="space-y-1">
+                    <div className="space-y-3">
                       {PARAMS.map((p) => {
                         const res = results[p.id];
                         return (
-                          <div key={p.id}>
-                            <div className="flex items-center gap-2 text-xs">
+                          <div key={p.id} className="space-y-1">
+                            <div className="flex items-center gap-2 text-xs font-semibold">
                               <span
                                 className="inline-block h-2 w-2 shrink-0 rounded-full"
                                 style={{ backgroundColor: p.color }}
                               />
-                              <span className="font-semibold">{p.label}:</span>
-                              {res?.data ? (
-                                <span className="flex items-center gap-1 opacity-70">
-                                  <span>
-                                    {res.data.station.name} (
-                                    {res.data.station.distance_km} km)
+                              {p.label}
+                            </div>
+                            {res?.data ? (
+                              <div className="ml-4 space-y-0.5 text-xs">
+                                <div className="flex min-w-0 flex-wrap items-baseline gap-x-1.5 gap-y-0.5">
+                                  <span className="shrink-0 opacity-50">
+                                    Nearest station
+                                  </span>
+                                  <span className="font-medium">
+                                    {res.data.station.name}
+                                  </span>
+                                  <span className="opacity-60">
+                                    · {res.data.station.distance_km} km away
                                   </span>
                                   <svg
                                     viewBox="0 0 24 24"
-                                    className="h-3 w-3 shrink-0"
+                                    className="h-3 w-3 shrink-0 opacity-60"
                                     style={{
                                       transform: `rotate(${bearingDeg(
                                         selection.lat,
@@ -432,16 +485,20 @@ export default function App() {
                                       fill="currentColor"
                                     />
                                   </svg>
-                                </span>
-                              ) : res?.error ? (
-                                <span className="opacity-50">{res.error}</span>
-                              ) : (
-                                <span className="opacity-50">…</span>
-                              )}
-                            </div>
-                            <p className="ml-4 text-[0.7rem] leading-snug opacity-50">
-                              {p.description}
-                            </p>
+                                </div>
+                                <p className="text-[0.7rem] leading-snug opacity-50">
+                                  {p.description}
+                                </p>
+                              </div>
+                            ) : res?.error ? (
+                              <p className="ml-4 text-xs opacity-50">
+                                {res.error}
+                              </p>
+                            ) : (
+                              <p className="ml-4 text-xs opacity-50">
+                                Finding nearest station…
+                              </p>
+                            )}
                           </div>
                         );
                       })}
@@ -454,8 +511,8 @@ export default function App() {
                   </div>
                 </div>
 
-                <div className="flex items-center justify-between gap-2">
-                  <div role="tablist" className="tabs tabs-border">
+                <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                  <div role="tablist" className="tabs tabs-border min-w-0">
                     {RESOLUTIONS.map((r) => (
                       <button
                         key={r}
@@ -469,7 +526,7 @@ export default function App() {
                   </div>
 
                   <select
-                    className="select select-xs w-auto"
+                    className="select select-xs w-full shrink-0 sm:w-auto"
                     aria-label="Time period"
                     value={periodLabel}
                     onChange={(e) => setPeriodLabel(e.target.value)}
@@ -488,7 +545,7 @@ export default function App() {
                   </h3>
                   {purgeButton("cloud", "Purge & refresh cloud data")}
                 </div>
-                <div className="relative mx-auto aspect-2/1 w-full max-w-600">
+                <div className="relative mx-auto aspect-2/1 min-h-[320px] w-full min-w-0 max-w-full overflow-hidden">
                   {cloudBusy && (
                     <div className="absolute inset-0 flex items-center justify-center">
                       <span className="loading loading-spinner loading-lg" />
@@ -504,6 +561,13 @@ export default function App() {
                   )}
                 </div>
 
+                <RiskPanel
+                  lat={selection.lat}
+                  lon={selection.lon}
+                  measuring={drawing}
+                  onToggleMeasure={() => setDrawing((d) => !d)}
+                />
+
                 <div className="mt-2">
                   <div className="mb-1 flex items-center justify-between">
                     <h3 className="text-xs font-semibold opacity-70">
@@ -512,7 +576,15 @@ export default function App() {
                     </h3>
                     {purgeButton("lightning", "Purge & refresh lightning data")}
                   </div>
-                  <div className="relative mx-auto aspect-3/1 w-full max-w-600">
+                  <p className="mb-2 text-[0.7rem] leading-snug opacity-50">
+                    Strikes from SMHI's national lightning-detection network
+                    (all of Sweden), counted within{" "}
+                    {lightning.data?.radius_km ?? 50} km of the selected point.
+                    The strike-risk card turns this local ground-flash density
+                    into an annual strike probability using the IEC 62305
+                    collection-area formula.
+                  </p>
+                  <div className="relative mx-auto aspect-3/1 min-h-[280px] w-full min-w-0 max-w-full overflow-hidden">
                     {lightningBusy && (
                       <div className="absolute inset-0 flex items-center justify-center">
                         <span className="loading loading-spinner loading-lg" />
@@ -539,13 +611,6 @@ export default function App() {
                     )}
                   </div>
                 </div>
-
-                <RiskPanel
-                  lat={selection.lat}
-                  lon={selection.lon}
-                  measuring={drawing}
-                  onToggleMeasure={() => setDrawing((d) => !d)}
-                />
 
                 {attribution && (
                   <p className="text-xs opacity-50">{attribution}</p>
