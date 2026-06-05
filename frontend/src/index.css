@@ -52,3 +52,12 @@ body,
 .animate-measure-input-flash {
   animation: measure-input-flash 0.85s ease-out;
 }
+
+/* MapLibre uses grab/grabbing — override after its CSS loads (same specificity). */
+.maplibregl-canvas-container.maplibregl-interactive {
+  cursor: default !important;
+}
+
+.maplibregl-canvas-container.maplibregl-interactive:active {
+  cursor: all-scroll !important;
+}
