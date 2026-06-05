@@ -90,32 +90,57 @@ SQLite cache as the fast path. The cache has three tables — `Station`,
 hit at all. `param` (16 = total cloud cover %, 29 = low cloud octas) is part of
 every key, so the same station holds independent rows per parameter.
 
+**Scenario 1 — cold cache start.** Fresh database, first request for a coordinate
+runs the full ladder: station list → nearest station → recent JSON → archive CSV
+→ SQL aggregation. ~1–2 s on the deployed instance.
+
 ```mermaid
-flowchart TD
-    Client["GET /api/cloud-cover<br/>lat, lon, resolution, param"] --> Svc["CloudCoverService.get_cloud_cover"]
+sequenceDiagram
+    autonumber
+    actor User as Frontend user
+    participant API as Backend API
+    participant DB as SQLite cache
+    participant SMHI as SMHI Open Data
 
-    Svc --> ESL["1 · ensure_station_list(param)"]
-    ESL -->|"read station-list ledger row<br/>(station_id=0, kind=station_list)"| FL[("FetchLog")]
-    ESL -.->|"missing / older than<br/>station_list_ttl_days"| SMHI1["SMHI: station list"]
-    SMHI1 -->|"upsert_stations"| ST[("Station")]
-    SMHI1 -->|"record_fetch"| FL
+    User->>API: GET /api/cloud-cover?lat&lon&resolution&param=16
+    API->>DB: SELECT FetchLog (station_list, recent, archive)
+    DB-->>API: empty / stale
+    API->>SMHI: GET /parameter/16.json
+    SMHI-->>API: station list (~80 stations)
+    API->>DB: UPSERT Station; record_fetch(station_list)
+    API->>DB: nearest active station (haversine)
+    DB-->>API: station
+    API->>SMHI: GET /parameter/16/station/{id}/latest-months/data.json
+    SMHI-->>API: ~4 months hourly
+    API->>SMHI: GET /parameter/16/station/{id}/corrected-archive/data.csv
+    SMHI-->>API: ~13 months hourly
+    API->>DB: UPSERT Observation; record_fetch(recent, archive)
+    API->>DB: GROUP BY bucket; AVG(value); COUNT(value)
+    DB-->>API: aggregated points (e.g. ~13 monthly)
+    API-->>User: CloudCoverResponse (200, ~1–2 s)
+```
 
-    Svc --> NS["2 · nearest_station(lat, lon)"]
-    NS -->|"read active stations,<br/>pick nearest ≤ nearest_max_km"| ST
+**Scenario 2 — second go (cache hit).** All three `FetchLog` TTLs still fresh,
+so SMHI isn't called. The whole request is three DB reads + one `GROUP BY`. The
+deployed instance answers in ~100 ms.
 
-    Svc --> EC["3 · ensure_cached(station, param)"]
-    EC -->|"read recent ledger row (kind=recent)"| FL
-    EC -.->|"missing / older than recent_ttl_seconds"| SMHI2["SMHI: latest-months JSON"]
-    SMHI2 -->|"upsert_observations"| OB[("Observation")]
-    SMHI2 -->|"record_fetch"| FL
-    EC -->|"read archive ledger row (kind=archive)"| FL
-    EC -.->|"missing / older than archive_ttl_days"| SMHI3["SMHI: corrected-archive CSV"]
-    SMHI3 -->|"upsert_observations<br/>(clipped to history_months)"| OB
-    SMHI3 -->|"record_fetch"| FL
+```mermaid
+sequenceDiagram
+    autonumber
+    actor User as Frontend user
+    participant API as Backend API
+    participant DB as SQLite cache
+    participant SMHI as SMHI Open Data
 
-    Svc --> AG["4 · aggregate_observations(window = history_months, resolution)"]
-    AG -->|"GROUP BY bucket; AVG(value); COUNT(value) — done in SQL"| OB
-    AG --> Resp["CloudCoverResponse<br/>station, points, stale"]
+    User->>API: GET /api/cloud-cover?lat&lon&resolution&param=16
+    API->>DB: SELECT FetchLog (station_list, recent, archive)
+    DB-->>API: all rows within TTL
+    API->>DB: nearest active station
+    DB-->>API: station
+    API->>DB: GROUP BY bucket; AVG(value); COUNT(value)
+    DB-->>API: aggregated points
+    API-->>User: CloudCoverResponse (200, ~100 ms)
+    Note over SMHI: not called — TTLs all fresh
 ```
 
 How each table is hit:
@@ -156,6 +181,33 @@ point. It reuses the cached lightning strikes (the lightning feature above) to
 derive a _local_ ground flash density, then applies the standard collection-area
 formulas. The math lives in the pure, I/O-free module
 `backend/app/services/lightning_risk.py`.
+
+**Scenario 3 — lightning risk assessment.** Strikes are cached per-day, so the
+shape is "warm the day-file cache, then do the math." After `make
+ingest-lightning` (or the first user click, whichever came first) the SMHI lane
+is silent and the response is sub-second.
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor User as Frontend user
+    participant API as Backend API
+    participant DB as SQLite cache
+    participant SMHI as SMHI Open Data
+
+    User->>API: GET /api/lightning-risk?lat&lon&length_m&width_m&height_m&location_factor
+    API->>DB: SELECT LightningDay (which days are cached?)
+    DB-->>API: covered set
+    opt missing days inside the retained window
+        API->>SMHI: GET /year/{y}/month/{m}/day/{d}/data.json (in parallel)
+        SMHI-->>API: per-day strike JSON
+        API->>DB: UPSERT LightningStrike + LightningDay; record_fetch
+    end
+    API->>DB: COUNT ground flashes within radius_km (cloud_indicator = 0)
+    DB-->>API: ground / total counts, time span
+    Note right of API: N_G = ground / (π·R²·yrs)<br/>A_D = L·W + 6H(L+W) + 9πH²<br/>N_D = N_G·A_D·C_D<br/>P = 1 − exp(−N_D)
+    API-->>User: LightningRiskResponse (P, hazard_band, return_period, N_G, ...)
+```
 
 1. **Ground flash density `N_G`** — `LightningService.ground_flash_density`
    counts cached **ground** flashes (`cloud_indicator == 0`) within
