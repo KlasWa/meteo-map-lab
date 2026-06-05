@@ -307,36 +307,6 @@ Every inbound request, the matching `request_complete` log line, and any
 reveals all related entries grouped under that trace — useful when chasing
 a single slow request through to the SMHI calls it made.
 
-### Branch protection (local pre-push guard)
-
-Server-side branch protection requires GitHub Pro on private repos, which
-this project isn't paying for. Instead there's a local pre-push hook at
-`scripts/git-hooks/pre-push` that refuses direct pushes to `main` and
-`develop`. Install it once after cloning:
-
-```sh
-make install-hooks
-```
-
-After that, `git push` to `main` or `develop` from the local clone is
-blocked unless you pass `--no-verify` (intentional escape hatch). This is a
-discipline aid, not a security boundary — anyone bypassing the hook still
-can — but it catches the muscle-memory case (which is where I burned the
-team once already).
-
-Upgrade to real server-side protection later by either making the repo
-public (free) or paying for Pro (~$4/mo) and running:
-
-```sh
-for branch in main develop; do
-  gh api -X PUT "repos/KlasWa/meteo-map-lab/branches/$branch/protection" --input - <<'JSON'
-{ "required_status_checks": null, "enforce_admins": false,
-  "required_pull_request_reviews": { "required_approving_review_count": 0 },
-  "restrictions": null, "allow_force_pushes": false, "allow_deletions": false }
-JSON
-done
-```
-
 ### Cleaner dashboard filters
 
 Cloud Run emits its own per-request `http_request` entry alongside our
