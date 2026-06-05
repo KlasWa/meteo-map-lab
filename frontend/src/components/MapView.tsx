@@ -2,16 +2,84 @@ import { useEffect, useLayoutEffect, useRef } from "react";
 import * as maptilersdk from "@maptiler/sdk";
 import "@maptiler/sdk/dist/maptiler-sdk.css";
 import { GeocodingControl } from "@maptiler/geocoding-control/maptilersdk";
-import type { PickEvent } from "@maptiler/geocoding-control/maptilersdk";
+import type {
+  Feature,
+  PickEvent,
+} from "@maptiler/geocoding-control/maptilersdk";
 
 import { rotatedRectangle } from "../lib/geo";
 import type { LatLon } from "../lib/url-state";
 
 const apiKey = import.meta.env.VITE_MAPTILER_KEY as string | undefined;
 
-// Match the zoom the MapTiler geocoding control flies to for an address pick
-// so a click / URL restore feels equivalent to a search.
+// Match the zoom used for a search pick or map click so both feel equivalent.
 const SELECTED_ZOOM = 18;
+
+/** easeTo (not flyTo) so the camera settles with the aside CSS transition. */
+function easeMapToSelection(map: maptilersdk.Map, pt: LatLon): void {
+  map.easeTo({
+    center: [pt.lon, pt.lat],
+    padding: { bottom: 0 },
+    zoom: SELECTED_ZOOM,
+    duration: 600,
+  });
+}
+
+// Ignore map clicks briefly after geocoder use so a list pick is not undone when
+// the dropdown closes and the pointer hits the map underneath.
+const GEOCODER_CLICK_SUPPRESS_MS = 800;
+
+const GEOCODER_ROOT_SELECTOR =
+  "maptiler-geocoder, .maplibregl-ctrl-geocoder, .maptiler-ctrl-geocoder";
+
+const GEOCODER_FEATURE_ITEM_TAG = "MAPTILER-GEOCODER-FEATURE-ITEM";
+
+interface GeocoderFeatureItemEl extends HTMLElement {
+  feature?: Feature;
+}
+
+/** Feature for a tapped result row (shadow DOM; only click, not touch, by default). */
+function featureFromGeocoderResultTap(event: Event): Feature | undefined {
+  for (const node of event.composedPath()) {
+    if (!(node instanceof HTMLElement)) continue;
+    if (node.tagName === GEOCODER_FEATURE_ITEM_TAG) {
+      return (node as GeocoderFeatureItemEl).feature;
+    }
+  }
+  return undefined;
+}
+
+function coordsFromGeocoderFeature(
+  feature: Feature | undefined,
+): LatLon | null {
+  if (!feature) return null;
+  if (feature.center?.length === 2) {
+    return { lat: feature.center[1], lon: feature.center[0] };
+  }
+  const geom = feature.geometry;
+  if (
+    geom?.type === "Point" &&
+    Array.isArray(geom.coordinates) &&
+    geom.coordinates.length >= 2
+  ) {
+    return { lat: geom.coordinates[1], lon: geom.coordinates[0] };
+  }
+  return null;
+}
+
+/** True when the event originated inside the geocoder (incl. shadow DOM). */
+function eventTargetsGeocoder(event: Event): boolean {
+  for (const node of event.composedPath()) {
+    if (!(node instanceof Element)) continue;
+    if (
+      node.matches(GEOCODER_ROOT_SELECTOR) ||
+      node.closest(GEOCODER_ROOT_SELECTOR)
+    ) {
+      return true;
+    }
+  }
+  return false;
+}
 
 // Finger movement below this (px) counts as a tap, not a pan gesture.
 const TAP_SLOP_PX = 12;
@@ -146,18 +214,26 @@ function fadeOutMeasureShape(
   }, MEASURE_HOLD_MS);
 }
 
+const MAP_CURSOR_DEFAULT = "default";
+const MAP_CURSOR_PAN = "all-scroll";
+const MAP_CURSOR_MEASURE = "crosshair";
+
+function setMapCursor(map: maptilersdk.Map, cursor: string): void {
+  map.getCanvas().style.cursor = cursor;
+}
+
 function setDrawGestures(map: maptilersdk.Map, enabled: boolean): void {
   if (enabled) {
     map.dragPan.enable();
     map.touchZoomRotate.enable();
     map.doubleClickZoom.enable();
-    map.getCanvas().style.cursor = "";
+    setMapCursor(map, MAP_CURSOR_DEFAULT);
     map.getCanvas().style.touchAction = "";
   } else {
     map.dragPan.disable();
     map.touchZoomRotate.disable();
     map.doubleClickZoom.disable();
-    map.getCanvas().style.cursor = "crosshair";
+    setMapCursor(map, MAP_CURSOR_MEASURE);
     // Keep taps on the map from scrolling the page while measuring.
     map.getCanvas().style.touchAction = "none";
   }
@@ -253,23 +329,94 @@ export function MapView({
       });
     });
 
-    const gc = new GeocodingControl({ apiKey });
+    // No MapTiler markers/geometry — we show a single red marker for selection.
+    const gc = new GeocodingControl({
+      apiKey,
+      marker: false,
+      markerOnSelected: false,
+      showResultMarkers: false,
+      fullGeometryStyle: false,
+      pickedResultStyle: "marker-only",
+      clearListOnPick: true,
+      // Camera moves in applyGeocoderPick — the control skips flyTo when the
+      // feature id matches its last pick (e.g. pan away, search same place).
+      flyTo: false,
+    });
     map.addControl(gc);
 
-    // PickEvent.feature.center is [lng, lat] (Position). place_name is the
-    // human display string MapTiler returned for the search result — pass it
-    // up so the parent can show it without a second reverse-geocode roundtrip.
+    let suppressMapClickUntil = 0;
+    let suppressClickUntil = 0;
+    let lastGeocoderPickId: string | number | undefined;
+    let lastGeocoderPickAt = 0;
+    const markGeocoderInteraction = () => {
+      suppressMapClickUntil = Date.now() + GEOCODER_CLICK_SUPPRESS_MS;
+    };
+
+    const onGeocoderInteraction = (event: Event) => {
+      if (eventTargetsGeocoder(event)) markGeocoderInteraction();
+    };
+
+    const applyGeocoderPick = (feature: Feature | undefined) => {
+      const pt = coordsFromGeocoderFeature(feature);
+      if (!pt) return;
+
+      // Always re-center — geocoder flyTo is off; its built-in fly also skips
+      // when the feature id was picked before, even after the user panned away.
+      easeMapToSelection(map, pt);
+
+      const pickId = feature?.id;
+      const now = Date.now();
+      if (
+        pickId !== undefined &&
+        pickId === lastGeocoderPickId &&
+        now - lastGeocoderPickAt < 600
+      ) {
+        return;
+      }
+      lastGeocoderPickId = pickId;
+      lastGeocoderPickAt = now;
+      markGeocoderInteraction();
+      // Block the synthetic click mobile browsers emit after a result tap.
+      suppressClickUntil = Date.now() + 500;
+      gc.clearMap();
+      onSelectRef.current?.(pt.lat, pt.lon, feature?.place_name);
+    };
+
+    // Mobile: list items only listen for click, which often never fires after
+    // the search input blurs. Fire the row's "select" event so the geocoder
+    // runs its normal pick path (clearListOnPick, pick event) before our hook.
+    const onGeocoderResultTouchEnd = (event: TouchEvent) => {
+      if (!featureFromGeocoderResultTap(event)) return;
+      event.preventDefault();
+      markGeocoderInteraction();
+      suppressClickUntil = Date.now() + 500;
+      for (const node of event.composedPath()) {
+        if (!(node instanceof HTMLElement)) continue;
+        if (node.tagName === GEOCODER_FEATURE_ITEM_TAG) {
+          node.dispatchEvent(
+            new CustomEvent("select", { bubbles: true, composed: true }),
+          );
+          return;
+        }
+      }
+    };
+
+    const mapContainer = map.getContainer();
+    mapContainer.addEventListener("pointerdown", onGeocoderInteraction, true);
+    mapContainer.addEventListener("touchstart", onGeocoderInteraction, {
+      capture: true,
+      passive: true,
+    });
+    mapContainer.addEventListener("touchend", onGeocoderResultTouchEnd, {
+      capture: true,
+      passive: false,
+    });
+
     const pickSub = gc.on("pick", (event: PickEvent) => {
-      const coords = event.feature?.center;
-      if (!coords) return;
-      const address =
-        (event.feature as { place_name?: string } | undefined)?.place_name ??
-        undefined;
-      onSelectRef.current?.(coords[1], coords[0], address);
+      applyGeocoderPick(event.feature);
     });
 
     let touchStart: { x: number; y: number } | null = null;
-    let suppressClickUntil = 0;
 
     const placeMeasurePoint = (pt: LatLon): boolean => {
       if (!drawingRef.current) return false;
@@ -345,6 +492,14 @@ export function MapView({
     });
 
     map.on("click", (event) => {
+      const domEvent = event.originalEvent;
+      if (
+        (domEvent && eventTargetsGeocoder(domEvent)) ||
+        Date.now() < suppressMapClickUntil
+      ) {
+        return;
+      }
+
       const pt = latLonFromEvent(event.lngLat);
 
       // Touchend places measure corners and exits draw mode before the
@@ -362,18 +517,20 @@ export function MapView({
       // 1-2s, leaving the camera mid-flight after the layout has settled —
       // the point reads as not-yet-centered relative to the new map size.
       if (!selectedRef.current) {
-        map.easeTo({
-          center: [pt.lon, pt.lat],
-          padding: { bottom: 0 },
-          zoom: SELECTED_ZOOM,
-          duration: 600,
-        });
+        easeMapToSelection(map, pt);
       }
       onMapClickRef.current?.(pt.lat, pt.lon);
     });
 
     map.on("mousemove", (event) => {
       previewMeasureAt(latLonFromEvent(event.lngLat));
+    });
+
+    map.on("dragstart", () => {
+      if (!drawingRef.current) setMapCursor(map, MAP_CURSOR_PAN);
+    });
+    map.on("dragend", () => {
+      if (!drawingRef.current) setMapCursor(map, MAP_CURSOR_DEFAULT);
     });
 
     const onKeyDown = (e: KeyboardEvent) => {
@@ -384,6 +541,21 @@ export function MapView({
     return () => {
       // resizeObs.disconnect();
       window.removeEventListener("keydown", onKeyDown);
+      mapContainer.removeEventListener(
+        "pointerdown",
+        onGeocoderInteraction,
+        true,
+      );
+      mapContainer.removeEventListener(
+        "touchstart",
+        onGeocoderInteraction,
+        true,
+      );
+      mapContainer.removeEventListener(
+        "touchend",
+        onGeocoderResultTouchEnd,
+        true,
+      );
       cancelMeasureFade(measureFadeFrameRef);
       if (measureFadeHoldRef.current !== null) {
         window.clearTimeout(measureFadeHoldRef.current);
