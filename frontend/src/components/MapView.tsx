@@ -214,18 +214,26 @@ function fadeOutMeasureShape(
   }, MEASURE_HOLD_MS);
 }
 
+const MAP_CURSOR_DEFAULT = "default";
+const MAP_CURSOR_PAN = "all-scroll";
+const MAP_CURSOR_MEASURE = "crosshair";
+
+function setMapCursor(map: maptilersdk.Map, cursor: string): void {
+  map.getCanvas().style.cursor = cursor;
+}
+
 function setDrawGestures(map: maptilersdk.Map, enabled: boolean): void {
   if (enabled) {
     map.dragPan.enable();
     map.touchZoomRotate.enable();
     map.doubleClickZoom.enable();
-    map.getCanvas().style.cursor = "";
+    setMapCursor(map, MAP_CURSOR_DEFAULT);
     map.getCanvas().style.touchAction = "";
   } else {
     map.dragPan.disable();
     map.touchZoomRotate.disable();
     map.doubleClickZoom.disable();
-    map.getCanvas().style.cursor = "crosshair";
+    setMapCursor(map, MAP_CURSOR_MEASURE);
     // Keep taps on the map from scrolling the page while measuring.
     map.getCanvas().style.touchAction = "none";
   }
@@ -516,6 +524,13 @@ export function MapView({
 
     map.on("mousemove", (event) => {
       previewMeasureAt(latLonFromEvent(event.lngLat));
+    });
+
+    map.on("dragstart", () => {
+      if (!drawingRef.current) setMapCursor(map, MAP_CURSOR_PAN);
+    });
+    map.on("dragend", () => {
+      if (!drawingRef.current) setMapCursor(map, MAP_CURSOR_DEFAULT);
     });
 
     const onKeyDown = (e: KeyboardEvent) => {
