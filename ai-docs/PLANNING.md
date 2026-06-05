@@ -1,7 +1,6 @@
 # PLANNING.md — meteo-map-lab
 
 > Project planning and architecture reference for AI-agent collaboration.
-> Source brief: [`README-instructions.md`](../README-instructions.md)
 
 ## Purpose & Goals
 
