@@ -1,8 +1,8 @@
 # meteo-map-lab
 
-React + TypeScript frontend and FastAPI backend that uses SMHI data to analyze
-cloud coverage and lightning-strike probability for a location. See the brief in
-`README-instructions.md` and architecture in `ai-docs/PLANNING.md`.
+React + TypeScript frontend and FastAPI backend that uses SMHI data to analyze cloud coverage and lightning-strike probability for a location. See the brief in `README-instructions.md`.
+
+[Deployed live here at GCP](https://meteo-map-lab-frontend-nbljv5sxtq-lz.a.run.app/)
 
 ## Prerequisites
 
