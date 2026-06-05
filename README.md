@@ -236,6 +236,45 @@ Recommended one-time setup in the GCP Console (free, ~5 min):
 - **Budget alert** at €10/mo (Billing → Budgets & alerts). Catches runaway
   cost from a stuck container or an unexpected load.
 
+### Tracking outbound calls to SMHI
+
+The backend logs one structured line per outbound HTTP call (both the cloud
+and lightning clients). In the Cloud Logging console:
+
+```
+jsonPayload.message="outbound_request"                         # all outbound calls
+jsonPayload.message="outbound_request" AND jsonPayload.service="smhi-metobs"
+jsonPayload.message="outbound_request" AND jsonPayload.status>=400
+jsonPayload.message="outbound_request" AND jsonPayload.duration_ms>2000
+```
+
+For a count over time, create a **logs-based counter metric** (Logging →
+Logs-based metrics → Create metric) using the same filter, then chart it in
+Cloud Monitoring or alert on a threshold (e.g. "more than 100 outbound
+calls in 5 min" — usually means the cache emptied).
+
+### Trace correlation
+
+Every inbound request, the matching `request_complete` log line, and any
+`outbound_request` lines it spawns all carry the same Cloud Trace ID
+(stashed in a `contextvars.ContextVar` from the inbound
+`X-Cloud-Trace-Context` header). In Cloud Logging, opening one entry
+reveals all related entries grouped under that trace — useful when chasing
+a single slow request through to the SMHI calls it made.
+
+### Cleaner dashboard filters
+
+Cloud Run emits its own per-request `http_request` entry alongside our
+structured ones; the duplicate is informational only. For day-to-day
+debugging, filter the noise out:
+
+```
+jsonPayload.message=("request_complete" OR "outbound_request")
+```
+
+Save it as a Cloud Logging "Saved query" and pin it to the project — gives
+you the structured stream without Cloud Run's chatter.
+
 ## Out of scope (later)
 
 Horizontal backend scaling (incompatible with single-writer SQLite), a custom
