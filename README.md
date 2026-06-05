@@ -49,14 +49,14 @@ make ingest-lightning
 
 Interactive docs are at http://localhost:8000/docs. The endpoints:
 
-| Method & path | Purpose |
-| --- | --- |
-| `GET /health` | Liveness and backend status. |
-| `GET /api/cloud-cover` | Cloud-cover series for one `param` (16 = total %, 29 = low cloud octas) at `resolution` = hourly/daily/monthly. |
-| `GET /api/cloud-cover/combined` | Total % and low-cloud octas together, for the dual-axis chart. |
-| `GET /api/lightning` | Strike counts near a point over the retained window. |
-| `GET /api/lightning-risk` | IEC 62305 direct-strike probability for a structure (see below). |
-| `DELETE /api/cache?scope=all\|cloud\|lightning` | Purge cached SMHI data; returns per-table delete counts. |
+| Method & path                                   | Purpose                                                                                                         |
+| ----------------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
+| `GET /health`                                   | Liveness and backend status.                                                                                    |
+| `GET /api/cloud-cover`                          | Cloud-cover series for one `param` (16 = total %, 29 = low cloud octas) at `resolution` = hourly/daily/monthly. |
+| `GET /api/cloud-cover/combined`                 | Total % and low-cloud octas together, for the dual-axis chart.                                                  |
+| `GET /api/lightning`                            | Strike counts near a point over the retained window.                                                            |
+| `GET /api/lightning-risk`                       | IEC 62305 direct-strike probability for a structure (see below).                                                |
+| `DELETE /api/cache?scope=all\|cloud\|lightning` | Purge cached SMHI data; returns per-table delete counts.                                                        |
 
 All data endpoints take `lat` and `lon`, serve `stale: true` from cache when
 SMHI is unreachable, and 503 when nothing is cached.
@@ -153,7 +153,7 @@ all, the endpoint returns 503 `SMHIUnavailable`.
 `GET /api/lightning-risk?lat=&lon=&length_m=&width_m=&height_m=&location_factor=&line_length_m=`
 estimates the IEC 62305 chance of a direct lightning strike to a structure at a
 point. It reuses the cached lightning strikes (the lightning feature above) to
-derive a *local* ground flash density, then applies the standard collection-area
+derive a _local_ ground flash density, then applies the standard collection-area
 formulas. The math lives in the pure, I/O-free module
 `backend/app/services/lightning_risk.py`.
 
@@ -228,13 +228,6 @@ make logs-prod-errors     # only ERROR+ (5xx, tracebacks)
 ```
 
 Both require `gcloud beta` once: `gcloud components install beta`.
-
-Recommended one-time setup in the GCP Console (free, ~5 min):
-
-- **Uptime check** on `/health` with email alert
-  (Monitoring → Uptime checks). Wakes you up if the backend dies.
-- **Budget alert** at €10/mo (Billing → Budgets & alerts). Catches runaway
-  cost from a stuck container or an unexpected load.
 
 ### Tracking outbound calls to SMHI
 
