@@ -39,7 +39,14 @@ resource "google_cloud_run_v2_service" "frontend" {
   // Image is owned by the deploy workflow (`gcloud run deploy …:SHA`); see
   // the matching comment in cloud_run_backend.tf.
   lifecycle {
-    ignore_changes = [template[0].containers[0].image]
+    ignore_changes = [
+      // Image is owned by the deploy workflow; see cloud_run_backend.tf for
+      // the same rationale.
+      template[0].containers[0].image,
+      // Suppress the resource-level `scaling` phantom diff from the v2
+      // provider; matches cloud_run_backend.tf.
+      scaling,
+    ]
   }
 
   depends_on = [google_project_service.main]
