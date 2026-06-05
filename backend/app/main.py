@@ -8,6 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.api.routes import router
 from app.core.config import settings
 from app.core.logging import configure_logging
+from app.core.trace import parse_cloud_trace_header, set_trace_id, trace_field
 from app.db.session import init_db
 
 configure_logging()
@@ -35,23 +36,29 @@ def build_app(cors_origins: str) -> FastAPI:
         allow_headers=["*"],
     )
 
-    # Per-request timing. Cloud Logging picks up the `extra` fields as
-    # jsonPayload.* (via JsonFormatter); filter for slow paths with
-    # `jsonPayload.duration_ms > 500`.
+    # Per-request timing + Cloud Trace correlation. We stash the inbound
+    # trace ID in a contextvar so outbound_request logs (issued inside route
+    # handlers) can carry the same trace, letting Cloud Logging visually
+    # group "one Cloud Run access entry → one request_complete → N
+    # outbound_request" entries under a single trace.
     @api.middleware("http")
     async def request_timing(request: Request, call_next):
+        set_trace_id(parse_cloud_trace_header(
+            request.headers.get("x-cloud-trace-context", "")
+        ))
         started = time.perf_counter()
         response = await call_next(request)
         duration_ms = round((time.perf_counter() - started) * 1000, 1)
-        _logger.info(
-            "request_complete",
-            extra={
-                "path": request.url.path,
-                "method": request.method,
-                "status": response.status_code,
-                "duration_ms": duration_ms,
-            },
-        )
+        extra: dict[str, object] = {
+            "path": request.url.path,
+            "method": request.method,
+            "status": response.status_code,
+            "duration_ms": duration_ms,
+        }
+        tf = trace_field()
+        if tf is not None:
+            extra["logging.googleapis.com/trace"] = tf
+        _logger.info("request_complete", extra=extra)
         return response
 
     api.include_router(router)

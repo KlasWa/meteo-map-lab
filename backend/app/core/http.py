@@ -21,6 +21,8 @@ import time
 
 import httpx
 
+from app.core.trace import trace_field
+
 _logger = logging.getLogger("app.outbound")
 
 
@@ -45,16 +47,17 @@ def make_logged_client(
             if started is not None
             else None
         )
-        _logger.info(
-            "outbound_request",
-            extra={
-                "service": service,
-                "method": response.request.method,
-                "url": str(response.request.url),
-                "status": response.status_code,
-                "duration_ms": duration_ms,
-            },
-        )
+        extra: dict[str, object] = {
+            "service": service,
+            "method": response.request.method,
+            "url": str(response.request.url),
+            "status": response.status_code,
+            "duration_ms": duration_ms,
+        }
+        tf = trace_field()
+        if tf is not None:
+            extra["logging.googleapis.com/trace"] = tf
+        _logger.info("outbound_request", extra=extra)
 
     return httpx.Client(
         base_url=base_url,

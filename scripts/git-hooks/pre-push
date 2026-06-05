@@ -1,0 +1,33 @@
+#!/bin/sh
+# Refuses direct pushes to protected branches. Catches the "I forgot to branch"
+# muscle-memory case before it lands. Not a security boundary — anyone can
+# bypass with `git push --no-verify` — just a guard against accidents.
+#
+# Install: `make install-hooks` (copies this file to .git/hooks/pre-push).
+# Edit the protected list below if you want to gate more branches.
+
+set -eu
+
+protected="main develop"
+remote_name="$1"
+
+# stdin format from git: <local-ref> <local-sha> <remote-ref> <remote-sha>
+# One line per ref being pushed. A deletion has local-sha = all zeros.
+while read -r local_ref local_sha remote_ref _remote_sha; do
+    [ "$local_sha" = "0000000000000000000000000000000000000000" ] && continue
+
+    case "$remote_ref" in
+        refs/heads/*) branch="${remote_ref##refs/heads/}" ;;
+        *) continue ;;
+    esac
+
+    for p in $protected; do
+        if [ "$branch" = "$p" ]; then
+            cat >&2 <<EOF
+✗ Pre-push guard: direct push to '$p' on '$remote_name' blocked.
+  Branch and open a PR, or pass --no-verify if you're sure.
+EOF
+            exit 1
+        fi
+    done
+done

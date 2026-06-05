@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
 
-import { getRiskInputs, setFactor, setLength, subscribe } from "./riskInputs";
+import {
+  getRiskInputs,
+  setFactor,
+  setLength,
+  setMeasuredDimensions,
+  subscribe,
+} from "./riskInputs";
 
 describe("riskInputs store", () => {
   it("has sensible defaults", () => {
@@ -33,5 +39,14 @@ describe("riskInputs store", () => {
   it("setFactor updates the factor", () => {
     setFactor(2);
     expect(getRiskInputs().factor).toBe(2);
+  });
+
+  it("setMeasuredDimensions updates length and width and bumps flash tick", () => {
+    const tickBefore = getRiskInputs().measureFlashTick;
+    setMeasuredDimensions("12.5", "8.3");
+    const s = getRiskInputs();
+    expect(s.length).toBe("12.5");
+    expect(s.width).toBe("8.3");
+    expect(s.measureFlashTick).toBe(tickBefore + 1);
   });
 });

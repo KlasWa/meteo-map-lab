@@ -61,6 +61,15 @@ resource "google_cloud_run_v2_service" "backend" {
         name  = "LITESTREAM_PATH"
         value = "meteo_map_lab"
       }
+      env {
+        # Read by app.core.trace.trace_field() to build the
+        # `projects/<id>/traces/<tid>` resource name Cloud Logging uses to
+        # correlate stdout entries with the matching Cloud Run access-log
+        # entry. Without this, the field resolves to None and no correlation
+        # happens — app still functions normally.
+        name  = "GOOGLE_CLOUD_PROJECT"
+        value = var.project_id
+      }
 
       volume_mounts {
         name       = "data"
@@ -86,12 +95,19 @@ resource "google_cloud_run_v2_service" "backend" {
     timeout = "600s"
   }
 
-  // Image is owned by the deploy workflow (`gcloud run deploy …:SHA`), not
-  // by Terraform. Without this, every PR plan after a deploy would show a
-  // spurious diff between the var default (cloudrun/hello) and whatever
-  // SHA is live in production.
   lifecycle {
-    ignore_changes = [template[0].containers[0].image]
+    ignore_changes = [
+      // Image is owned by the deploy workflow (`gcloud run deploy …:SHA`),
+      // not by Terraform. Without this, every PR plan after a deploy would
+      // show a spurious diff between the var default and the live SHA.
+      template[0].containers[0].image,
+      // The v2 provider exposes a resource-level `scaling` block for Cloud
+      // Run's instance-based billing mode. We don't declare it (we use
+      // `template.scaling` for the revision scaling), but the API returns
+      // it with default zeros — TF then wants to "remove" it on every plan.
+      // Ignoring suppresses that noisy diff without affecting behavior.
+      scaling,
+    ]
   }
 
   depends_on = [google_project_service.main]
