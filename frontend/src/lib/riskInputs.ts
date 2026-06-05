@@ -8,6 +8,8 @@ export interface RiskInputsState {
   height: string;
   lineLength: string;
   factor: LocationFactor;
+  /** Bumped when length/width are set together from map measure (UI flash). */
+  measureFlashTick: number;
 }
 
 // In-memory module state: re-initialised on reload (no localStorage), and shared
@@ -18,6 +20,7 @@ let state: RiskInputsState = {
   height: "5",
   lineLength: "",
   factor: 1,
+  measureFlashTick: 0,
 };
 
 const listeners = new Set<() => void>();
@@ -42,6 +45,10 @@ function set(patch: Partial<RiskInputsState>): void {
 
 export const setLength = (length: string) => set({ length });
 export const setWidth = (width: string) => set({ width });
+
+/** Set length and width from a map measurement and signal the inputs to flash. */
+export const setMeasuredDimensions = (length: string, width: string) =>
+  set({ length, width, measureFlashTick: state.measureFlashTick + 1 });
 export const setHeight = (height: string) => set({ height });
 export const setLineLength = (lineLength: string) => set({ lineLength });
 export const setFactor = (factor: LocationFactor) => set({ factor });

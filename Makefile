@@ -1,7 +1,7 @@
 COMPOSE = docker compose -f .devcontainer/docker-compose.yml
 COMPOSE_DEBUG = docker compose -f .devcontainer/docker-compose.yml -f .devcontainer/docker-compose.debug.yml
 
-.PHONY: up down rebuild debug reset-db ingest-lightning test gen-schema gen-types gen-api logs-prod logs-prod-errors
+.PHONY: up down rebuild debug reset-db ingest-lightning test gen-schema gen-types gen-api logs-prod logs-prod-errors install-hooks
 
 up:
 	$(COMPOSE) up --build
@@ -63,3 +63,10 @@ logs-prod-errors:
 	gcloud beta logging tail \
 	  'resource.type="cloud_run_revision" AND resource.labels.service_name="meteo-map-lab-backend" AND severity>=ERROR' \
 	  --project=meteo-map-lab
+
+# Install the pre-push guard that refuses direct pushes to main/develop.
+# Run once after cloning, and again whenever scripts/git-hooks/pre-push changes.
+install-hooks:
+	@cp scripts/git-hooks/pre-push .git/hooks/pre-push
+	@chmod +x .git/hooks/pre-push
+	@echo "✓ Pre-push guard installed. Direct pushes to main/develop now require --no-verify."

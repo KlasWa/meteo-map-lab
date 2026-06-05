@@ -18,7 +18,13 @@ class Settings(BaseSettings):
     history_months: int = 13  # how far back to retain/serve
     recent_ttl_seconds: int = 3600  # re-fetch latest-months window after this
     archive_ttl_days: int = 30  # re-fetch corrected-archive after this, to pick
-    # up SMHI quality corrections folded in after latest-months ages out
+    # up SMHI quality corrections folded in after latest-months ages out.
+    # Observed (2026-06): SMHI regenerates the corrected-archive network-wide in
+    # batches roughly quarterly (identical `updated` across all stations/params,
+    # trailing ~3 months behind now), not monthly. A 30d TTL is conservative —
+    # it never misses a batch; latest-months overlaps the boundary so recent
+    # data stays fresh regardless. Could relax toward ~60d to cut redundant
+    # re-fetches; avoid going much past the ~quarterly cadence.
     station_list_ttl_days: int = 1  # refresh station list after this
     nearest_max_km: float = 250.0  # reject coordinates with no station within
     # (wider than typical: active param-16 stations are sparse since manual

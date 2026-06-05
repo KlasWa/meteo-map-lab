@@ -24,17 +24,47 @@ export function RiskPanel({
   lon,
   measuring,
   onToggleMeasure,
+  lightningBusy = false,
 }: {
   lat: number;
   lon: number;
   measuring: boolean;
   onToggleMeasure: () => void;
+  /** When true, overlay a spinner — strike risk reads cached lightning data,
+   *  so the form is unusable until the lightning fetch finishes. */
+  lightningBusy?: boolean;
 }) {
-  const { length, width, height, lineLength, factor } = useRiskInputs();
+  const { length, width, height, lineLength, factor, measureFlashTick } =
+    useRiskInputs();
   const [result, setResult] = useState<LightningRisk | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const resultRef = useRef<HTMLDivElement>(null);
+  const lengthInputRef = useRef<HTMLInputElement>(null);
+  const widthInputRef = useRef<HTMLInputElement>(null);
+
+  // Flash the Length / Width inputs when the measure tool populated them.
+  // Done via DOM classList instead of React state — restarting a CSS
+  // animation from React state needs a setState->setState cascade in the
+  // effect (the react-hooks/set-state-in-effect rule rightly complains).
+  // `void el.offsetWidth` forces a reflow so the browser sees the class
+  // removal and the re-add as two separate frames.
+  useEffect(() => {
+    if (measureFlashTick === 0) return;
+    const els = [lengthInputRef.current, widthInputRef.current].filter(
+      (el): el is HTMLInputElement => el !== null,
+    );
+    const cls = "animate-measure-input-flash";
+    for (const el of els) {
+      el.classList.remove(cls);
+      void el.offsetWidth;
+      el.classList.add(cls);
+    }
+    const done = window.setTimeout(() => {
+      for (const el of els) el.classList.remove(cls);
+    }, 900);
+    return () => window.clearTimeout(done);
+  }, [measureFlashTick]);
 
   useEffect(() => {
     if (result) {
@@ -93,17 +123,30 @@ export function RiskPanel({
   };
 
   return (
-    <section className="card card-compact border border-base-300 bg-base-100">
-      <div className="card-body gap-2 p-3">
+    <section className="card card-compact min-w-0 overflow-hidden border border-base-300 bg-base-100">
+      <div className="card-body relative gap-2 p-3">
         <h3 className="text-xs font-semibold opacity-70">
           Strike risk (IEC 62305)
         </h3>
+        {lightningBusy && (
+          // Mirrors the LightningChart's spinner pattern. Strike risk relies
+          // on cached lightning data, so the inputs are blocked until the
+          // fetch finishes — otherwise Calculate would 503 on a cold cache.
+          <div
+            className="absolute inset-0 z-10 flex items-center justify-center rounded-box bg-base-100/70 backdrop-blur-sm"
+            aria-busy="true"
+            aria-live="polite"
+          >
+            <span className="loading loading-spinner loading-lg" />
+          </div>
+        )}
         <div className="space-y-2">
           <div className="space-y-1">
-            <div className="grid grid-cols-3 gap-2">
-              <label className="flex flex-col gap-1">
+            <div className="grid grid-cols-3 gap-1.5 sm:gap-2 [&>*]:min-w-0">
+              <label className="flex min-w-0 flex-col gap-1">
                 <span className="label-text text-[0.7rem]">Length (m)</span>
                 <input
+                  ref={lengthInputRef}
                   type="number"
                   min="0"
                   step="any"
@@ -112,9 +155,10 @@ export function RiskPanel({
                   onChange={(e) => setLength(e.target.value)}
                 />
               </label>
-              <label className="flex flex-col gap-1">
+              <label className="flex min-w-0 flex-col gap-1">
                 <span className="label-text text-[0.7rem]">Width (m)</span>
                 <input
+                  ref={widthInputRef}
                   type="number"
                   min="0"
                   step="any"
@@ -123,7 +167,7 @@ export function RiskPanel({
                   onChange={(e) => setWidth(e.target.value)}
                 />
               </label>
-              <label className="flex flex-col gap-1">
+              <label className="flex min-w-0 flex-col gap-1">
                 <span className="label-text text-[0.7rem]">Height (m)</span>
                 <input
                   type="number"
@@ -138,24 +182,24 @@ export function RiskPanel({
 
             <button
               type="button"
-              className={`btn btn-xs ${measuring ? "btn-warning" : "btn-ligth"}`}
+              className={`btn btn-xs h-auto min-h-8 whitespace-normal text-left ${measuring ? "btn-warning" : "btn-ligth"}`}
               onClick={onToggleMeasure}
             >
               {measuring
-                ? "Measuring… click one side (2 points), then the opposite side (Esc to cancel)"
+                ? "Measuring… tap three corners: two along one side, then the opposite side (tap again to cancel)"
                 : "Measure on map"}
             </button>
           </div>
 
-          <div className="grid grid-cols-2 gap-2">
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 [&>*]:min-w-0">
             {/* `flex flex-col` is explicit because daisyUI 5 dropped the
                 form-control utility that previously stacked label-text above
                 its control. Without it, `<select>` would render inline with
                 its sibling span. */}
-            <label className="flex flex-col gap-1">
+            <label className="flex min-w-0 flex-col gap-1">
               <span className="label-text text-[0.7rem]">Surroundings</span>
               <select
-                className="select select-bordered select-xs w-full"
+                className="select select-bordered select-xs w-full min-w-0 max-w-full"
                 value={factor}
                 onChange={(e) =>
                   setFactor(Number(e.target.value) as LocationFactor)
@@ -168,7 +212,7 @@ export function RiskPanel({
                 ))}
               </select>
             </label>
-            <label className="flex flex-col gap-1">
+            <label className="flex min-w-0 flex-col gap-1">
               <span className="label-text text-[0.7rem]">
                 Incoming line length (m, optional)
               </span>
@@ -199,20 +243,20 @@ export function RiskPanel({
                 ref={resultRef}
                 className="rounded-box border border-base-300 p-2 text-xs space-y-1"
               >
-                <div className="flex items-baseline justify-between gap-2">
-                  <span className="font-semibold">
+                <div className="flex min-w-0 flex-col gap-1 sm:flex-row sm:items-baseline sm:justify-between">
+                  <span className="min-w-0 font-semibold">
                     Annual chance of a direct strike
                   </span>
-                  <span className="text-base font-bold">
+                  <span className="shrink-0 text-base font-bold">
                     {formatPercent(result.annual_probability)}
                   </span>
                 </div>
                 <div className="opacity-70">
                   {formatReturnPeriod(result.return_period_years ?? null)}
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex min-w-0 flex-wrap items-center gap-2">
                   <span className="badge badge-sm">{result.hazard_band}</span>
-                  <span className="opacity-50">
+                  <span className="min-w-0 opacity-50">
                     heuristic, not an IEC verdict
                   </span>
                 </div>
