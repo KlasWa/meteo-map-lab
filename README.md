@@ -1,8 +1,8 @@
 # meteo-map-lab
 
-React + TypeScript frontend and FastAPI backend that uses SMHI data to analyze
-cloud coverage and lightning-strike probability for a location. See the brief in
-`README-instructions.md` and architecture in `ai-docs/PLANNING.md`.
+React + TypeScript frontend and FastAPI backend that uses SMHI data to analyze cloud coverage and lightning-strike probability for a location. See the brief in `README-instructions.md`.
+
+[Deployed live here at GCP](https://meteo-map-lab-frontend-nbljv5sxtq-lz.a.run.app/)
 
 ## Prerequisites
 
@@ -49,14 +49,14 @@ make ingest-lightning
 
 Interactive docs are at http://localhost:8000/docs. The endpoints:
 
-| Method & path | Purpose |
-| --- | --- |
-| `GET /health` | Liveness and backend status. |
-| `GET /api/cloud-cover` | Cloud-cover series for one `param` (16 = total %, 29 = low cloud octas) at `resolution` = hourly/daily/monthly. |
-| `GET /api/cloud-cover/combined` | Total % and low-cloud octas together, for the dual-axis chart. |
-| `GET /api/lightning` | Strike counts near a point over the retained window. |
-| `GET /api/lightning-risk` | IEC 62305 direct-strike probability for a structure (see below). |
-| `DELETE /api/cache?scope=all\|cloud\|lightning` | Purge cached SMHI data; returns per-table delete counts. |
+| Method & path                                   | Purpose                                                                                                         |
+| ----------------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
+| `GET /health`                                   | Liveness and backend status.                                                                                    |
+| `GET /api/cloud-cover`                          | Cloud-cover series for one `param` (16 = total %, 29 = low cloud octas) at `resolution` = hourly/daily/monthly. |
+| `GET /api/cloud-cover/combined`                 | Total % and low-cloud octas together, for the dual-axis chart.                                                  |
+| `GET /api/lightning`                            | Strike counts near a point over the retained window.                                                            |
+| `GET /api/lightning-risk`                       | IEC 62305 direct-strike probability for a structure (see below).                                                |
+| `DELETE /api/cache?scope=all\|cloud\|lightning` | Purge cached SMHI data; returns per-table delete counts.                                                        |
 
 All data endpoints take `lat` and `lon`, serve `stale: true` from cache when
 SMHI is unreachable, and 503 when nothing is cached.
@@ -153,7 +153,7 @@ all, the endpoint returns 503 `SMHIUnavailable`.
 `GET /api/lightning-risk?lat=&lon=&length_m=&width_m=&height_m=&location_factor=&line_length_m=`
 estimates the IEC 62305 chance of a direct lightning strike to a structure at a
 point. It reuses the cached lightning strikes (the lightning feature above) to
-derive a *local* ground flash density, then applies the standard collection-area
+derive a _local_ ground flash density, then applies the standard collection-area
 formulas. The math lives in the pure, I/O-free module
 `backend/app/services/lightning_risk.py`.
 
@@ -229,12 +229,44 @@ make logs-prod-errors     # only ERROR+ (5xx, tracebacks)
 
 Both require `gcloud beta` once: `gcloud components install beta`.
 
-Recommended one-time setup in the GCP Console (free, ~5 min):
+### Tracking outbound calls to SMHI
 
-- **Uptime check** on `/health` with email alert
-  (Monitoring → Uptime checks). Wakes you up if the backend dies.
-- **Budget alert** at €10/mo (Billing → Budgets & alerts). Catches runaway
-  cost from a stuck container or an unexpected load.
+The backend logs one structured line per outbound HTTP call (both the cloud
+and lightning clients). In the Cloud Logging console:
+
+```
+jsonPayload.message="outbound_request"                         # all outbound calls
+jsonPayload.message="outbound_request" AND jsonPayload.service="smhi-metobs"
+jsonPayload.message="outbound_request" AND jsonPayload.status>=400
+jsonPayload.message="outbound_request" AND jsonPayload.duration_ms>2000
+```
+
+For a count over time, create a **logs-based counter metric** (Logging →
+Logs-based metrics → Create metric) using the same filter, then chart it in
+Cloud Monitoring or alert on a threshold (e.g. "more than 100 outbound
+calls in 5 min" — usually means the cache emptied).
+
+### Trace correlation
+
+Every inbound request, the matching `request_complete` log line, and any
+`outbound_request` lines it spawns all carry the same Cloud Trace ID
+(stashed in a `contextvars.ContextVar` from the inbound
+`X-Cloud-Trace-Context` header). In Cloud Logging, opening one entry
+reveals all related entries grouped under that trace — useful when chasing
+a single slow request through to the SMHI calls it made.
+
+### Cleaner dashboard filters
+
+Cloud Run emits its own per-request `http_request` entry alongside our
+structured ones; the duplicate is informational only. For day-to-day
+debugging, filter the noise out:
+
+```
+jsonPayload.message=("request_complete" OR "outbound_request")
+```
+
+Save it as a Cloud Logging "Saved query" and pin it to the project — gives
+you the structured stream without Cloud Run's chatter.
 
 ## Out of scope (later)
 

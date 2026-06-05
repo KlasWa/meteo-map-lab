@@ -59,8 +59,9 @@ historical data so repeated queries don't re-hit SMHI.
 | Package mgmt | uv (backend), npm (frontend)               | `uv.lock` / `package-lock.json` committed.     |
 | Dev env      | Docker Compose + devcontainer, Makefile    | frontend + backend services, helper targets.   |
 | Tooling      | Ruff + pylint + pytest (backend), ESLint + tsc (FE) | Lint/format and tests.                 |
-| Deployment   | Terraform                                  | Per brief; not yet scaffolded.                 |
-| CI/CD        | GitHub Actions (bonus)                     | Lint, test, build, deploy.                      |
+| Deployment   | GCP Cloud Run (europe-north1) + Terraform  | Two services; SQLite replicated to GCS via Litestream. |
+| CI/CD        | GitHub Actions, WIF-authenticated          | `test.yml` on PRs (pytest, tsc/lint, TF plan); `deploy.yml` on push to main. |
+| Observability | Cloud Logging (structured JSON) + Cloud Trace correlation | Per-request `duration_ms`, per-outbound SMHI call, all linked via `X-Cloud-Trace-Context`. |
 | Forecasting  | AI/ML model (bonus)                        | Predict cloud/lightning trends.                |
 
 All earlier TBDs are now decided (charting → Chart.js, data store → SQLite,
@@ -119,10 +120,31 @@ chart's cached data, and re-fetches it immediately.
 
 ## Deployment (Terraform)
 
-- Infrastructure described as code under a future `infra/` (or `terraform/`)
-  directory.
-- Provision: frontend hosting, backend runtime, and the data store.
-- Keep environments (dev/prod) parameterized; do not commit secrets.
+Infrastructure lives under [`infra/`](../infra/):
+
+- `infra/bootstrap/` — one-time, run locally: GCS bucket for the `infra/main/`
+  Terraform state, Workload Identity Federation pool + provider for GitHub
+  Actions, and the CI service account.
+- `infra/main/` — applied from CI: APIs, Artifact Registry, the Litestream
+  GCS replica bucket, Secret Manager (`maptiler-key`), runtime service
+  accounts, and the two Cloud Run services. Cloud Run image is owned by
+  `gcloud run deploy` (TF `ignore_changes` on the container image) so PR
+  plans stay noise-free.
+
+Production runtime in `europe-north1`:
+
+- Backend Cloud Run service (`min=1, max=1`, 1 vCPU / 1 GiB,
+  `cpu_idle = true`) — always-on so SQLite has a single writer and
+  Litestream replicates the WAL to GCS continuously. Restored on every
+  cold start from the latest GCS snapshot.
+- Frontend Cloud Run service (`min=0, max=4`) — nginx serving the Vite
+  bundle, with `VITE_API_URL` + `VITE_MAPTILER_KEY` baked at CI build time.
+- Both public, both authenticated to the project's own SAs only via
+  scoped bindings (no project-wide secrets/storage access).
+
+See [`docs/superpowers/specs/2026-06-01-gcp-cloud-run-litestream-deploy-design.md`](../docs/superpowers/specs/2026-06-01-gcp-cloud-run-litestream-deploy-design.md)
+for the full design and [`docs/superpowers/plans/2026-06-01-gcp-deploy.md`](../docs/superpowers/plans/2026-06-01-gcp-deploy.md)
+for the step-by-step plan that built it.
 
 ## Milestones / Roadmap
 
@@ -148,11 +170,17 @@ chart's cached data, and re-fetches it immediately.
    per-day in SQLite, aggregated hourly/daily/monthly, and charted as bars
    below the cloud chart. ✅ Done (see
    `docs/superpowers/plans/2026-06-01-smhi-lightning.md`).
-7. **Deployment** — Terraform for hosted environments on GCP (Cloud Run +
-   Litestream-backed SQLite + GitHub Actions). 🟡 Designed; see
-   `docs/superpowers/specs/2026-06-01-gcp-cloud-run-litestream-deploy-design.md`.
-8. **Bonus** — AI forecasting. ⏳ Not started. (CI/CD is folded into the
-   deployment spec above.)
+7. **Deployment** — GCP Cloud Run (europe-north1) for both services,
+   SQLite preserved at runtime via Litestream → GCS, Terraform-provisioned,
+   deployed by GitHub Actions on push to `main`. ✅ Done (see
+   `docs/superpowers/specs/2026-06-01-gcp-cloud-run-litestream-deploy-design.md`).
+8. **Observability & performance** — SQL-side aggregation (no Python ORM
+   hydration on cached reads, ~10× faster on Cloud Run's 1 vCPU);
+   structured JSON logs surfacing per-request `duration_ms` and per
+   outbound SMHI call (`outbound_request`); Cloud Trace correlation so
+   every entry from one request groups under a single trace in Cloud
+   Logging. ✅ Done.
+9. **Bonus** — AI forecasting. ⏳ Not started.
 
 > Deferred within the cloud-cover work (see spec §9): scheduled background
 > refresh, multi-station "region" aggregation, quality-code filtering, and an
@@ -173,4 +201,4 @@ chart's cached data, and re-fetches it immediately.
 - **`specs/`** — one file per feature/decision before it is built. Use the
   spec workflow (`/spec-generate` → `/spec-implement` → `/spec-finish`).
 
-_Last updated: 2026-06-02 (cache-purge endpoint and per-chart purge buttons added)._
+_Last updated: 2026-06-05 (deployment now live on GCP; SQL aggregation, structured logs, and Cloud Trace correlation added)._

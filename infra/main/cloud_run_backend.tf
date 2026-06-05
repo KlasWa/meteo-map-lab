@@ -61,6 +61,15 @@ resource "google_cloud_run_v2_service" "backend" {
         name  = "LITESTREAM_PATH"
         value = "meteo_map_lab"
       }
+      env {
+        # Read by app.core.trace.trace_field() to build the
+        # `projects/<id>/traces/<tid>` resource name Cloud Logging uses to
+        # correlate stdout entries with the matching Cloud Run access-log
+        # entry. Without this, the field resolves to None and no correlation
+        # happens — app still functions normally.
+        name  = "GOOGLE_CLOUD_PROJECT"
+        value = var.project_id
+      }
 
       volume_mounts {
         name       = "data"
