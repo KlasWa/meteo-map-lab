@@ -27,3 +27,6 @@ dist/
 **/terraform.tfvars
 !**/terraform.tfvars.example
 infra/bootstrap/bootstrap-outputs.json
+
+# Other
+README-instructions.md
